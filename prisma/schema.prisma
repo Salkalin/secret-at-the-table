@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  HOST
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      Role
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  sessions  GameSession[] @relation("HostSessions")
+}
+
+model GameSession {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  hostId    String
+  host      User     @relation("HostSessions", fields: [hostId], references: [id])
+  scenario  String
+  state     Json
+  status    String   @default("lobby")
+  createdAt DateTime @default(now())
+  endedAt   DateTime?
+  players   Player[]
+  teams     Team[]
+  @@index([code])
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  nickname  String
+  socketId  String?
+  teamId    String?
+  team      Team?    @relation(fields: [teamId], references: [id])
+  isCaptain Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  name      String
+  score     Int      @default(0)
+  players   Player[]
+  votes     Vote[]
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  round     Int
+  suspectId String
+  correct   Boolean?
+  createdAt DateTime @default(now())
+}

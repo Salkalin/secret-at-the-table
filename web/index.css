@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  background: #110f0e;
+  color: #ece5da;
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+}
+h1, h2, h3 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 600;
+}
+.mono { font-family: 'Courier Prime', monospace; }

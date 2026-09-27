@@ -1,0 +1,32 @@
+# Зависимости
+node_modules
+
+# Сборка
+dist
+
+# Локальные переменные окружения
+.env
+.env.local
+.env.production
+
+# Логи
+*.log
+
+# Мусор ОС
+.DS_Store
+Thumbs.db
+
+# Prisma dev-файлы
+prisma/migrations/dev.db*
+
+# Docker (локальные данные)
+pgdata/
+caddy_data/
+caddy_config/
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+
+# Vite
+node_modules/.vite
