@@ -3,6 +3,78 @@ import { prisma } from './db.js';
 import * as E from './engine.js';
 
 const sessions = new Map<string, E.GameState>();
+const clueTimers = new Map<string, NodeJS.Timeout>();
+
+function stopClueTimer(code: string) {
+  const t = clueTimers.get(code);
+  if (t) {
+    clearInterval(t);
+    clueTimers.delete(code);
+  }
+}
+
+function broadcastState(io: Server, code: string, ns: E.GameState) {
+  const screenPub = E.publicState(ns, { revealSolution: ns.phase === 'end' });
+  const playPub = E.publicState(ns, { revealSolution: false });
+  io.to(`screen:${code}`).emit('state', screenPub);
+  io.to(`play:${code}`).emit('state', playPub);
+}
+
+async function persistState(code: string, ns: E.GameState) {
+  try {
+    if (ns.phase === 'end') {
+      await prisma.gameSession.update({
+        where: { code },
+        data: { status: 'finished', endedAt: new Date(), state: ns as any }
+      });
+    } else {
+      await prisma.gameSession.update({
+        where: { code },
+        data: { state: ns as any, status: ns.phase === 'lobby' ? 'lobby' : 'playing' }
+      });
+    }
+  } catch (e) {
+    console.error('[persist] db update failed', e);
+  }
+}
+
+function startClueTimer(io: Server, code: string) {
+  stopClueTimer(code);
+  const s0 = sessions.get(code);
+  if (!s0 || s0.phase !== 'discussion') return;
+
+  const timer = setInterval(async () => {
+    const s = sessions.get(code);
+    if (!s || s.phase !== 'discussion' || !s.roundStartedAt) {
+      stopClueTimer(code);
+      return;
+    }
+    const elapsed = Math.floor((Date.now() - s.roundStartedAt) / 1000);
+    const sc = E.scenarioOf(s);
+    const roundClues = sc.clues
+      .map((c, i) => ({ c, i }))
+      .filter(x => x.c.round === s.round)
+      .map(x => x.i);
+
+    const times = E.CLUE_TIMES_SEC;
+    const shouldReveal = roundClues.filter((_, idx) => elapsed >= (times[idx] || 9999));
+    let changed = false;
+    let ns = s;
+    for (const clueIdx of shouldReveal) {
+      if (!ns.revealedClues.includes(clueIdx)) {
+        ns = E.revealClue(ns, clueIdx);
+        changed = true;
+      }
+    }
+    if (changed) {
+      sessions.set(code, ns);
+      await persistState(code, ns);
+      broadcastState(io, code, ns);
+    }
+  }, 3000);
+
+  clueTimers.set(code, timer);
+}
 
 export function attachSocket(io: Server) {
   io.on('connection', socket => {
@@ -70,27 +142,12 @@ export function attachSocket(io: Server) {
       const ns = E.nextPhase(s);
       sessions.set(code, ns);
 
-      try {
-        if (ns.phase === 'end') {
-          await prisma.gameSession.update({
-            where: { code },
-            data: { status: 'finished', endedAt: new Date(), state: ns as any }
-          });
-        } else {
-          await prisma.gameSession.update({
-            where: { code },
-            data: { state: ns as any, status: ns.phase === 'lobby' ? 'lobby' : 'playing' }
-          });
-        }
-      } catch (e) {
-        console.error('[host:advance] db update failed', e);
-      }
+      stopClueTimer(code);
+      if (ns.phase === 'discussion') startClueTimer(io, code);
 
-      const screenPub = E.publicState(ns, { revealSolution: ns.phase === 'end' });
-      const playPub = E.publicState(ns, { revealSolution: false });
-      io.to(`screen:${code}`).emit('state', screenPub);
-      io.to(`play:${code}`).emit('state', playPub);
-      cb?.({ state: screenPub });
+      await persistState(code, ns);
+      broadcastState(io, code, ns);
+      cb?.({ state: E.publicState(ns, { revealSolution: ns.phase === 'end' }) });
     });
 
     socket.on('host:prev', async ({ code }: { code: string }, cb?: any) => {
@@ -101,20 +158,12 @@ export function attachSocket(io: Server) {
       if (ns === s) return cb?.({ error: 'no_prev' });
       sessions.set(code, ns);
 
-      try {
-        await prisma.gameSession.update({
-          where: { code },
-          data: { state: ns as any, status: ns.phase === 'lobby' ? 'lobby' : 'playing' }
-        });
-      } catch (e) {
-        console.error('[host:prev] db update failed', e);
-      }
+      stopClueTimer(code);
+      if (ns.phase === 'discussion') startClueTimer(io, code);
 
-      const screenPub = E.publicState(ns, { revealSolution: ns.phase === 'end' });
-      const playPub = E.publicState(ns, { revealSolution: false });
-      io.to(`screen:${code}`).emit('state', screenPub);
-      io.to(`play:${code}`).emit('state', playPub);
-      cb?.({ state: screenPub });
+      await persistState(code, ns);
+      broadcastState(io, code, ns);
+      cb?.({ state: E.publicState(ns, { revealSolution: ns.phase === 'end' }) });
     });
 
     socket.on('host:reset', async ({ code }: { code: string }, cb?: any) => {
@@ -123,21 +172,11 @@ export function attachSocket(io: Server) {
       if (!s) return cb?.({ error: 'not_found' });
       const ns = E.resetSession(s);
       sessions.set(code, ns);
+      stopClueTimer(code);
 
-      try {
-        await prisma.gameSession.update({
-          where: { code },
-          data: { state: ns as any, status: 'lobby', endedAt: null }
-        });
-      } catch (e) {
-        console.error('[host:reset] db update failed', e);
-      }
-
-      const screenPub = E.publicState(ns, { revealSolution: false });
-      const playPub = E.publicState(ns, { revealSolution: false });
-      io.to(`screen:${code}`).emit('state', screenPub);
-      io.to(`play:${code}`).emit('state', playPub);
-      cb?.({ state: screenPub });
+      await persistState(code, ns);
+      broadcastState(io, code, ns);
+      cb?.({ state: E.publicState(ns, { revealSolution: false }) });
     });
 
     socket.on('team:vote', ({ code, suspectId }: { code: string; suspectId: string }, cb?: any) => {
