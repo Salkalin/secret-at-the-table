@@ -113,19 +113,6 @@ export function attachSocket(io: Server) {
         teamId = t.id;
       }
 
-      const dbSession = await prisma.gameSession.findUnique({ where: { code } });
-      if (dbSession) {
-        await prisma.player.create({
-          data: {
-            sessionId: dbSession.id,
-            nickname,
-            socketId: socket.id,
-            teamId,
-            isCaptain
-          }
-        });
-      }
-
       socket.data = { code, teamId, isCaptain, nickname };
       socket.join(`play:${code}`);
 

@@ -13,14 +13,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 
 async function bootstrap() {
-  // seed: первый админ
   const adminEmail = process.env.ADMIN_EMAIL;
   const adminPass = process.env.ADMIN_PASSWORD;
   if (adminEmail && adminPass) {
     const exists = await prisma.user.findUnique({ where: { email: adminEmail } });
     if (!exists) {
       await prisma.user.create({
-        data: { email: adminEmail, password: await A.hashPassword(adminPass), role: 'ADMIN' }
+        data: {
+          email: adminEmail,
+          password: await A.hashPassword(adminPass),
+          role: 'ADMIN'
+        }
       });
       console.log('[seed] admin created:', adminEmail);
     }
@@ -28,8 +31,20 @@ async function bootstrap() {
 
   const app = Fastify({ logger: true });
 
-  // Socket.IO цепляем к уже существующему серверу Fastify
-  const io = new Server(app.server, { cors: { origin: true, credentials: true } });
+  const io = new Server(app.server, {
+    path: '/socket.io/',
+    cors: { origin: true, credentials: true },
+    transports: ['polling', 'websocket']
+  });
+
+  app.addHook('onRequest', (req, reply, done) => {
+    if (req.raw.url && req.raw.url.startsWith('/socket.io/')) {
+      reply.hijack();
+      return;
+    }
+    done();
+  });
+
   attachSocket(io);
 
   await app.register(cookie);
