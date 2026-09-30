@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import RainBackground from './RainBackground';
 import Landing from './views/Landing';
 import Login from './views/Login';
@@ -8,9 +8,12 @@ import Screen from './views/Screen';
 import Play from './views/Play';
 
 export default function App() {
+  const location = useLocation();
+  const isLanding = location.pathname === '/';
+
   return (
     <>
-      <RainBackground />
+      {!isLanding && <RainBackground />}
       <div className="relative" style={{ zIndex: 1 }}>
         <Routes>
           <Route path="/" element={<Landing />} />
