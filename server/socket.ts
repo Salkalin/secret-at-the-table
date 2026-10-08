@@ -49,7 +49,11 @@ function startClueTimer(io: Server, code: string) {
       stopClueTimer(code);
       return;
     }
-    const elapsed = Math.floor((Date.now() - s.roundStartedAt) / 1000);
+    if (s.roundPausedAt) return; // на паузе улики не раскрываются
+    const pausedNow = s.roundPausedAt ? Date.now() - s.roundPausedAt : 0;
+    const elapsed = Math.floor(
+      (Date.now() - s.roundStartedAt - (s.roundPausedTotalMs || 0)) / 1000
+    );
     const sc = E.scenarioOf(s);
     const roundClues = sc.clues
       .map((c, i) => ({ c, i }))
@@ -66,7 +70,15 @@ function startClueTimer(io: Server, code: string) {
         changed = true;
       }
     }
-    if (changed) {
+      if (changed) {
+        console.log(
+        '[clue-timer] revealed new clues for',
+        code,
+        'at elapsed',
+        elapsed,
+        'total',
+        ns.revealedClues.length
+      );
       sessions.set(code, ns);
       await persistState(code, ns);
       broadcastState(io, code, ns);
@@ -103,7 +115,10 @@ export function attachSocket(io: Server) {
           name: nickname + ' (стол)',
           score: 0,
           captainId: socket.id,
-          vote: null
+          captainName: nickname,
+          vote: null,
+          joinedAt: Date.now(),
+          roundScores: [0, 0, 0, 0]
         });
         teamId = id;
         isCaptain = true;
@@ -165,7 +180,22 @@ export function attachSocket(io: Server) {
       broadcastState(io, code, ns);
       cb?.({ state: E.publicState(ns, { revealSolution: false }) });
     });
-
+    socket.on('host:toggle-pause', async ({ code }: { code: string }, cb?: any) => {
+      console.log('[host:toggle-pause]', code);
+      const s = sessions.get(code);
+      if (!s || s.phase !== 'discussion') return cb?.({ error: 'not_discussion' });
+      const ns: any = { ...s };
+      if (ns.roundPausedAt) {
+        ns.roundPausedTotalMs = (ns.roundPausedTotalMs || 0) + (Date.now() - ns.roundPausedAt);
+        ns.roundPausedAt = null;
+      } else {
+        ns.roundPausedAt = Date.now();
+      }
+      sessions.set(code, ns);
+      await persistState(code, ns);
+      broadcastState(io, code, ns);
+      cb?.({ ok: true, paused: !!ns.roundPausedAt });
+    });
     socket.on('team:vote', ({ code, suspectId }: { code: string; suspectId: string }, cb?: any) => {
       const s = sessions.get(code);
       if (!s || s.phase !== 'voting') return cb?.({ error: 'not_voting' });

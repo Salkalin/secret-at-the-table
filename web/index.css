@@ -7,9 +7,26 @@ html, body {
   color: #ece5da;
   font-family: 'Inter', sans-serif;
   margin: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
 }
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(192, 86, 58, 0.10), transparent 60%),
+    radial-gradient(90% 60% at 50% 110%, rgba(0, 0, 0, 0.6), transparent 60%);
+  opacity: calc(1 - var(--flash, 0) * 0.6);
+  transition: opacity 0.15s linear;
+}
+
 h1, h2, h3 {
   font-family: 'Cormorant Garamond', Georgia, serif;
   font-weight: 600;
 }
+
 .mono { font-family: 'Courier Prime', monospace; }

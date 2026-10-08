@@ -7,7 +7,10 @@ export type TeamState = {
   name: string;
   score: number;
   captainId: string | null;
+  captainName: string | null;
   vote: string | null;
+  joinedAt: number;
+  roundScores: number[];
 };
 
 export type GameState = {
@@ -23,10 +26,12 @@ export type GameState = {
   roundStartedAt: number | null;
   roundDurationSec: number;
   finishedAt: number | null;
+  roundPausedAt: number | null;
+  roundPausedTotalMs: number;
 };
 
 export const ROUND_SECONDS = 600;
-export const CLUE_TIMES_SEC = [180, 300, 420, 540];
+export const CLUE_TIMES_SEC = [10, 20, 30, 40];
 
 export const TOTAL_ROUNDS = 4;
 
@@ -43,7 +48,9 @@ export function createInitialState(code: string, scenarioId: string): GameState 
     lastResult: null,
     roundStartedAt: null,
     roundDurationSec: ROUND_SECONDS,
-    finishedAt: null
+    finishedAt: null,
+    roundPausedAt: null,
+    roundPausedTotalMs: 0
   };
 }
 
@@ -62,6 +69,18 @@ function pickElimination(s: GameState): string | null {
   const nonKiller = alive.filter(x => x.id !== killerId);
   if (nonKiller.length <= 1) return null;
 
+  // ===== Строгий порядок, если задан в сценарии =====
+  if (sc.eliminationOrder && sc.eliminationOrder.length > 0) {
+    const next = sc.eliminationOrder.find(id => !s.eliminatedSuspects.includes(id));
+    if (next) {
+      // защита от случайного выбывания убийцы
+      if (next === killerId) return null;
+      return next;
+    }
+    return null;
+  }
+
+  // ===== Иначе — по голосам =====
   const votes: Record<string, number> = {};
   for (const t of s.teams) {
     if (t.vote) votes[t.vote] = (votes[t.vote] || 0) + 1;
@@ -109,13 +128,18 @@ export function nextPhase(s: GameState): GameState {
       const killer = sc.suspects.find(x => x.isGuilty)!;
       ns.teams.forEach(t => {
         const correct = t.vote === killer.id;
+        let roundScore = 0;
         if (correct) {
           t.score += 500;
+          roundScore = 500;
           result.correctTeamIds.push(t.id);
         } else if (t.vote) {
           t.score -= 200;
+          roundScore = -200;
           result.wrongTeamIds.push(t.id);
         }
+        if (!t.roundScores) t.roundScores = [0, 0, 0, 0];
+        t.roundScores[ns.round - 1] = roundScore;
         result.perTeam.push({ teamId: t.id, vote: t.vote, correct });
       });
 
@@ -192,7 +216,10 @@ export function resetSession(s: GameState): GameState {
       name: t.name,
       score: 0,
       captainId: t.captainId,
-      vote: null
+      captainName: t.captainName,
+      vote: null,
+      joinedAt: t.joinedAt,
+      roundScores: [0, 0, 0, 0]
     }))
   };
 }
@@ -210,6 +237,8 @@ export function publicState(s: GameState, opts: { revealSolution: boolean }) {
     teams: s.teams,
     roundStartedAt: s.roundStartedAt,
     roundDurationSec: s.roundDurationSec,
+    roundPausedAt: s.roundPausedAt,
+    roundPausedTotalMs: s.roundPausedTotalMs,
     clueTimesSec: CLUE_TIMES_SEC,
     eliminatedSuspects: s.eliminatedSuspects,
     lastResult: s.lastResult,
@@ -220,10 +249,13 @@ export function publicState(s: GameState, opts: { revealSolution: boolean }) {
       crime: sc.crime,
       victim: sc.victim,
       location: sc.location,
-      suspects: sc.suspects.map(({ secret, ...rest }) => rest)
+      bg: sc.bg,
+      suspects: sc.suspects.map(({ secret, ...rest }) => rest),
+      clues: sc.clues
     },
     chapter,
-    clues: s.revealedClues.map(i => sc.clues[i])
+    clues: s.revealedClues.map(i => sc.clues[i]),
+    revealedClueIndices: s.revealedClues
   };
   if (opts.revealSolution) {
     base.solution = sc.solution;

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import RainBackground from './RainBackground';
+import ThunderSound from './ThunderSound';
 import Landing from './views/Landing';
 import Login from './views/Login';
 import Admin from './views/Admin';
@@ -10,10 +12,11 @@ import Play from './views/Play';
 export default function App() {
   const location = useLocation();
   const isLanding = location.pathname === '/';
+  const [strikeTick, setStrikeTick] = useState(0);
 
   return (
     <>
-      {!isLanding && <RainBackground />}
+      {!isLanding && <RainBackground onStrike={() => setStrikeTick(t => t + 1)} />}
       <div className="relative" style={{ zIndex: 1 }}>
         <Routes>
           <Route path="/" element={<Landing />} />
@@ -24,6 +27,7 @@ export default function App() {
           <Route path="/play/:code" element={<Play />} />
         </Routes>
       </div>
+      {!isLanding && <ThunderSound trigger={strikeTick} />}
     </>
   );
 }
