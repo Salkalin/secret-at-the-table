@@ -115,7 +115,7 @@ export default function Screen() {
         <div className="min-h-screen p-6 md:p-8 max-w-[1200px] mx-auto">
       {bgUrl && (
         <div
-          className="fixed inset-0 -z-10 transition-opacity duration-700"
+          className="fixed inset-0 -z-20 transition-opacity duration-700"
           style={{
             backgroundImage: `url('${bgUrl}')`,
             backgroundSize: 'cover',
@@ -189,14 +189,22 @@ export default function Screen() {
         />
       )}
 
-      {phase === 'voting' && (
-        <Voting
-          scenario={scenario}
-          aliveSuspects={aliveSuspects}
-          advance={advance}
-          goBack={goBack}
-          busy={busy}
-        />
+            {phase === 'voting' && (
+        <div className="text-center py-16">
+          <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-3">
+            Голосование
+          </h2>
+          <p className="text-muted max-w-[560px] mx-auto mb-8">
+            Капитаны команд выбирают подозреваемого <b>на своих телефонах</b>.
+          </p>
+          <button
+            onClick={() => setAccuseOpen(true)}
+            className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 transition"
+          >
+            <i className="fa-solid fa-gavel" />
+            Открыть протокол обвинения
+          </button>
+        </div>
       )}
 
       {phase === 'results' && lastResult && (
@@ -215,13 +223,17 @@ export default function Screen() {
         <EndView state={state} onReset={reset} speech={speech} />
       )}
 
-      {accuseOpen && phase === 'discussion' && (
+      {accuseOpen && (phase === 'discussion' || phase === 'voting') && (
         <AccuseModal
           suspects={aliveSuspects}
           onClose={() => setAccuseOpen(false)}
           onConfirm={() => {
             setAccuseOpen(false);
-            advance();
+            if (phase === 'discussion') {
+              setAccuseOpen(false);
+            } else {
+              advance();
+            }
           }}
         />
       )}
@@ -528,10 +540,7 @@ function Intro({ scenario, advance, goBack, busy }: any) {
             </li>
           ))}
         </ol>
-        <div className="mt-4 p-4 rounded-xl border border-dashed border-accent/60 bg-panel/60 flex gap-3 text-[13px] text-[#cdbca8] leading-snug">
-          <i className="fa-solid fa-skull text-accent mt-0.5" />
-          <span>{GAME_NOTE}</span>
-        </div>
+
       </div>
     </div>
   );
@@ -567,13 +576,6 @@ function Story({ chapter, round, advance, goBack, busy, speech }: any) {
             className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
           >
             К обсуждению <i className="fa-solid fa-hourglass-start" />
-          </button>
-          <button
-            onClick={goBack}
-            disabled={busy}
-            className="px-5 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-sm disabled:opacity-40"
-          >
-            ← Назад
           </button>
         </div>
       </div>
@@ -629,7 +631,7 @@ function Story({ chapter, round, advance, goBack, busy, speech }: any) {
           disabled={busy}
           className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
         >
-          Осмотреть улики <i className="fa-solid fa-hourglass-start" />
+          Перейти к главе <i className="fa-solid fa-hourglass-start" />
         </button>
         <button
           onClick={goBack}
@@ -784,9 +786,6 @@ function Discussion({
           <i className="fa-solid fa-thumbtack text-accent text-base" />
           Доска улик
         </h3>
-        <span className="text-[13px] text-muted">
-          {clues.length} из {roundClues.length} в этой главе
-        </span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -885,21 +884,7 @@ function Discussion({
           {round >= 4 ? 'Финальная разгадка' : `Глава ${ROMAN[round] || round + 1}`}{' '}
           <i className="fa-solid fa-arrow-right" />
         </button>
-        <button
-          onClick={onAccuse}
-          disabled={busy}
-          className="px-6 py-3.5 rounded-xl border border-line bg-panel text-text hover:bg-panel2 text-[15px] inline-flex items-center gap-2.5 disabled:opacity-40"
-        >
-          <i className="fa-solid fa-gavel" />
-          Выдвинуть обвинение
-        </button>
-        <button
-          onClick={goBack}
-          disabled={busy}
-          className="px-5 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-sm disabled:opacity-40"
-        >
-          ← Назад
-        </button>
+  
       </div>
     </div>
   );
@@ -914,7 +899,7 @@ function Voting({ scenario, aliveSuspects, advance, goBack, busy }: any) {
     <div>
       <div className="text-center mb-8">
         <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-3">
-          Голосование
+          Итоги расследования
         </h2>
         <p className="text-muted max-w-[560px] mx-auto">
           Капитаны команд выбирают подозреваемого <b>на своих телефонах</b>. Ведущий
@@ -1095,32 +1080,35 @@ function Results({
   // ===== Обычный раунд — как было =====
   return (
     <div>
-      <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-8">
+      <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-accent mb-3">
+        Вердикт следствия
+      </div>
+      <h2 className="font-serif text-[clamp(44px,6vw,72px)] leading-none text-text font-semibold mb-10">
         Итоги раунда {round}
       </h2>
 
-      {elimSuspect && (
-        <div className="bg-panel border border-line rounded-2xl p-6 mb-8 max-w-[640px]">
-          <div className="text-[11px] font-bold tracking-wider uppercase text-accent mb-2">
+            {elimSuspect && (
+        <div className="bg-panel border border-line rounded-2xl p-8 md:p-12 mb-10">
+          <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-accent mb-4">
             Вердикт следствия
           </div>
-          <div className="flex items-center gap-3 mb-3">
-            <span className="w-14 h-14 rounded-full grid place-items-center bg-panel2 border border-line text-accent text-xl">
+          <div className="flex items-center gap-5 mb-5 flex-wrap">
+            <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-accent text-accent text-3xl">
               <i className={`fa-solid ${elimSuspect.icon}`} />
             </span>
             <div>
-              <div className="font-serif text-3xl leading-tight text-text">
+              <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
                 {elimSuspect.name}
               </div>
-              <div className="text-[10.5px] tracking-wider uppercase text-muted">
+              <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
                 {elimSuspect.role}
               </div>
             </div>
           </div>
-          <p className="text-[13px] text-muted m-0">
-  {elimSuspect.verdict ||
-    'Большинство команд назвало этого подозреваемого — но это не убийца. Он выбывает из расследования.'}
-</p>
+          <p className="text-[15px] text-muted leading-relaxed m-0">
+            {elimSuspect.verdict ||
+              'Большинство команд назвало этого подозреваемого — но это не убийца. Он выбывает из расследования.'}
+          </p>
         </div>
       )}
 
@@ -1198,26 +1186,6 @@ function EndView({ state, onReset, speech }: any) {
           (someoneRight ? 'border-accent bg-panel2' : 'border-line bg-panel')
         }
       >
-        {someoneRight ? (
-          <>
-            <h3 className="font-serif text-3xl text-text mb-2">Убийца раскрыт</h3>
-            <p className="text-muted m-0">
-              Команды, назвавшие правильное имя, получают очки. Победитель — в турнирной
-              таблице на прошлом экране.
-            </p>
-          </>
-        ) : (
-          <>
-            <h3 className="font-serif text-3xl text-text mb-2">
-              Убийца ушёл от правосудия
-            </h3>
-            <p className="text-muted m-0">
-              Ни одна команда не назвала правильное имя. Лучше всех оказалась{' '}
-              <b className="text-accent">{best?.name || '—'}</b> — она была ближе всех к
-              разгадке.
-            </p>
-          </>
-        )}
       </div>
 
       <div className="flex gap-3 flex-wrap">

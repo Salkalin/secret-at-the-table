@@ -20,26 +20,11 @@ type SessionRow = {
 
 const SCENARIO_META: Record<
   string,
-  { icon: string; color: string; tag: string; no: string }
+  { icon: string; color: string; tag: string; no: string; soon?: boolean }
 > = {
-  dinner: {
-    icon: 'fa-utensils',
-    color: '#e0603a',
-    tag: 'Отравление',
-    no: '017'
-  },
-  manor: {
-    icon: 'fa-chess-rook',
-    color: '#3fb39c',
-    tag: 'Запертая комната',
-    no: '042'
-  },
-  theatre: {
-    icon: 'fa-masks-theater',
-    color: '#d2663f',
-    tag: 'Премьера',
-    no: '003'
-  }
+  dinner: { icon: 'fa-utensils', color: '#e0603a', tag: 'Отравление', no: '017' },
+  manor: { icon: 'fa-chess-rook', color: '#3fb39c', tag: 'Скоро', no: '042', soon: true },
+  theatre: { icon: 'fa-masks-theater', color: '#d2663f', tag: 'Скоро', no: '003', soon: true }
 };
 
 const RANDOM_META = {
@@ -71,8 +56,9 @@ export default function Host() {
     try {
       let scenarioId = selected;
       if (scenarioId === 'random') {
-        const pick = scens[Math.floor(Math.random() * scens.length)];
-        scenarioId = pick?.id || scens[0]?.id;
+        const available = scens.filter(s => !SCENARIO_META[s.id]?.soon);
+        const pick = available[Math.floor(Math.random() * available.length)];
+        scenarioId = pick?.id || 'dinner';
       }
       const r = await api<{ code: string }>('/api/host/sessions', {
         method: 'POST',
@@ -121,23 +107,24 @@ export default function Host() {
           const isSel = selected === card.id;
           return (
             <button
-              key={card.id}
-              onClick={() => setSelected(card.id)}
-              className={
-                'relative text-left rounded-[18px] p-6 min-h-[260px] flex flex-col transition overflow-hidden border ' +
-                (isSel
-                  ? 'border-transparent'
-                  : 'border-line hover:-translate-y-1')
-              }
-              style={{
-                background: isSel
-                  ? `linear-gradient(180deg, ${card.color}22, rgba(16,10,8,.94))`
-                  : 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))',
-                boxShadow: isSel
-                  ? `0 18px 50px -20px ${card.color}`
-                  : 'none'
-              }}
-            >
+  key={card.id}
+  disabled={card.soon}
+  onClick={() => !card.soon && setSelected(card.id)}
+  className={
+    'relative text-left rounded-[18px] p-6 min-h-[260px] flex flex-col transition overflow-hidden border ' +
+    (card.soon
+      ? 'border-line opacity-50 cursor-not-allowed'
+      : isSel
+      ? 'border-transparent'
+      : 'border-line hover:-translate-y-1')
+  }
+  style={{
+    background: isSel && !card.soon
+      ? `linear-gradient(180deg, ${card.color}22, rgba(16,10,8,.94))`
+      : 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))',
+    boxShadow: isSel && !card.soon ? `0 18px 50px -20px ${card.color}` : 'none'
+  }}
+>
               {isSel && (
                 <span
                   className="absolute left-0 right-0 top-0 h-[3px]"
@@ -202,92 +189,7 @@ export default function Host() {
           <i className="fa-solid fa-arrow-right" />
         </button>
       </div>
-
-      <div>
-        <h3 className="font-serif text-[26px] text-text mb-4">Мои сессии</h3>
-        {sessions.length === 0 ? (
-          <div className="text-muted text-sm p-6 border border-dashed border-line rounded-xl text-center">
-            Пока пусто. Создайте первую игру выше.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr>
-                  <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold pb-3 px-2 border-b border-line">
-                    Код
-                  </th>
-                  <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold pb-3 px-2 border-b border-line">
-                    Дело
-                  </th>
-                  <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold pb-3 px-2 border-b border-line">
-                    Дата
-                  </th>
-                  <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold pb-3 px-2 border-b border-line">
-                    Статус
-                  </th>
-                  <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold pb-3 px-2 border-b border-line">
-                    &nbsp;
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map(s => {
-                  const meta = SCENARIO_META[s.scenario] || RANDOM_META;
-                  const scenTitle =
-                    scens.find(x => x.id === s.scenario)?.title || s.scenario;
-                  const statusLabel: Record<string, string> = {
-                    lobby: 'Лобби',
-                    playing: 'Игра идёт',
-                    finished: 'Завершена'
-                  };
-                  return (
-                    <tr key={s.id} className="border-b border-line last:border-0">
-                      <td className="py-3.5 px-2 font-mono text-text font-medium tracking-widest">
-                        {s.code}
-                      </td>
-                      <td className="py-3.5 px-2">
-                        <span className="inline-flex items-center gap-2 text-text">
-                          <i
-                            className={`fa-solid ${meta.icon}`}
-                            style={{ color: meta.color }}
-                          />
-                          {scenTitle}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-2 text-muted text-xs">
-                        {new Date(s.createdAt).toLocaleString('ru-RU')}
-                      </td>
-                      <td className="py-3.5 px-2">
-                        <span
-                          className={
-                            'text-xs font-semibold ' +
-                            (s.status === 'finished'
-                              ? 'text-muted'
-                              : s.status === 'playing'
-                              ? 'text-accent'
-                              : 'text-text')
-                          }
-                        >
-                          {statusLabel[s.status] || s.status}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-2">
-                        <Link
-                          to={`/screen/${s.code}`}
-                          className="text-accent hover:opacity-80 text-sm"
-                        >
-                          Открыть →
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      
     </div>
   );
 }

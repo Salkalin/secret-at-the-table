@@ -17,7 +17,7 @@ export default function App() {
   return (
     <>
       {!isLanding && <RainBackground onStrike={() => setStrikeTick(t => t + 1)} />}
-      <div className="relative" style={{ zIndex: 1 }}>
+      <div className="relative" style={{ zIndex: 2 }}>
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />

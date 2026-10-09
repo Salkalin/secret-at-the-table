@@ -31,7 +31,7 @@ export type GameState = {
 };
 
 export const ROUND_SECONDS = 600;
-export const CLUE_TIMES_SEC = [10, 20, 30, 40];
+export const CLUE_TIMES_SEC = [180, 300, 420, 540];
 
 export const TOTAL_ROUNDS = 4;
 

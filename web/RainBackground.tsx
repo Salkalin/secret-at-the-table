@@ -180,7 +180,7 @@ export default function RainBackground({ onStrike }: { onStrike?: () => void } =
       ref={canvasRef}
       aria-hidden="true"
       className="fixed inset-0 w-full h-full pointer-events-none"
-      style={{ zIndex: 0, opacity: 0.75 }}
+      style={{ zIndex: 2, opacity: 0.75 }}
     />
   );
 }
