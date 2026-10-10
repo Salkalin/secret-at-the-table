@@ -216,17 +216,8 @@ export default function Play() {
     return <StoryScreen scenario={scenario} round={round} />;
   }
 
-  if (phase === 'discussion') {
-    return (
-      <DiscussionScreen
-        scenario={scenario}
-        round={round}
-        clues={clues}
-        roundStartedAt={roundStartedAt}
-        clueTimesSec={clueTimesSec}
-        isCaptain={isCaptain}
-      />
-    );
+    if (phase === 'discussion') {
+    return <DiscussionScreen scenario={scenario} round={round} isCaptain={isCaptain} />;
   }
 
   if (phase === 'voting') {
@@ -683,28 +674,10 @@ function StoryScreen({ scenario, round }: any) {
 }
 
 // ============================================================
-// ЭКРАН 5: DISCUSSION (обсуждение с уликами)
+// ЭКРАН 5: DISCUSSION (обсуждение без улик)
 // ============================================================
 
-function DiscussionScreen({
-  scenario,
-  round,
-  clues,
-  roundStartedAt,
-  clueTimesSec,
-  isCaptain
-}: any) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  const elapsed = Math.floor((now - (roundStartedAt || now)) / 1000);
-  const times: number[] = clueTimesSec || [180, 300, 420, 540];
-  const nextTime = times.find((t: number) => t > elapsed);
-  const roundClues = (scenario.clues || []).filter((c: any) => c.round === round);
-
+function DiscussionScreen({ scenario, round, isCaptain }: any) {
   return (
     <div className="relative min-h-screen flex justify-center bg-[#0d0c0b] text-[#e8e2d6] overflow-hidden">
       <RainCanvas opacity={0.35} />
@@ -715,53 +688,57 @@ function DiscussionScreen({
         </div>
 
         <h2 className="font-['Cormorant_Garamond'] text-[32px] font-semibold text-[#f1e9df] mb-3">
-          Обсуждение
+          Досье
         </h2>
         <p className="text-[14px] text-[#a79f93] leading-snug mb-6">
-          Улики открываются постепенно на большом экране.
-          {nextTime !== undefined && (
-            <>
-              {' '}
-              Следующая через{' '}
-              <span className="text-[#c7654d] font-['JetBrains_Mono']">
-                {fmt(nextTime - elapsed)}
-              </span>
-              .
-            </>
-          )}
+          Изучите подозреваемых. Голосование откроется на следующем этапе.
         </p>
 
-        <div className="text-[11px] tracking-[.18em] uppercase text-[#b0584a] mb-4">
-          Улики раунда ({clues.length} из {roundClues.length})
-        </div>
-
-        {clues.length === 0 && (
-          <div className="border border-dashed border-[#2a2421] rounded-lg p-5 text-center text-[13px] text-[#8d837b] mb-4">
-            Пока улик нет. Смотрите на большой экран.
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {clues.map((c: any, i: number) => (
-            <div
-              key={i}
-              className="rounded-lg p-5 text-[#1a1611]"
-              style={{
-                background:
-                  'repeating-linear-gradient(0deg, transparent 0 31px, rgba(80,50,30,.06) 31px 32px), radial-gradient(ellipse at 20% 0%, #fbf1dd, #f1e4cb 60%)',
-                boxShadow: '0 16px 40px -22px rgba(0,0,0,.8)'
-              }}
+        <div className="flex flex-col gap-3.5">
+          {scenario.suspects.map((s: any, i: number) => (
+            <article
+              key={s.id}
+              className="relative border border-[#2c2821] bg-[#16140f] rounded p-5 pb-4"
             >
-              <div className="flex items-center gap-2 mb-2">
-                <i className={`fa-solid ${c.icon} text-[#1d120c]`} />
-                <div className="font-['Playfair_Display'] font-bold text-[14px] text-[#1a1611]">
-                  {c.name}
+              <div className="flex items-start gap-3.5">
+                <div className="flex-none w-[46px] h-[46px] rounded-full grid place-items-center border border-[#3a342a] bg-[#0f0e0c]">
+                  <i className={`fa-solid ${s.icon} text-[17px] text-[#a79d8b]`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-['IBM_Plex_Mono'] text-[10px] tracking-[.16em] text-[#6f675a] uppercase">
+                    Подозреваемый № 0{i + 1}
+                  </div>
+                  <div className="font-['Playfair_Display'] text-[24px] font-bold leading-tight mt-0.5">
+                    {s.name}
+                  </div>
+                  <div className="text-[13px] text-[#a79d8b] mt-0.5">{s.role}</div>
                 </div>
               </div>
-              <div className="font-['JetBrains_Mono'] text-[12.5px] leading-snug text-[#3a281c]">
-                {c.desc}
-              </div>
-            </div>
+
+              <p className="mt-4 font-['Playfair_Display'] italic text-[16px] leading-snug">
+                «{s.description}»
+              </p>
+
+              <dl className="mt-3.5 pt-3 border-t border-dashed border-[#3a342a] grid gap-2.5">
+                <div className="grid grid-cols-[62px_1fr] gap-2.5 text-[13.5px]">
+                  <dt className="font-['IBM_Plex_Mono'] text-[10px] tracking-[.14em] uppercase text-[#6f675a] pt-0.5">
+                    Мотив
+                  </dt>
+                  <dd className="text-[#a79d8b]">
+                    <span className="inline-block font-['IBM_Plex_Mono'] text-[10px] tracking-[.1em] uppercase text-[#ece4d4] border border-[#3a342a] px-1.5 py-px rounded-sm mr-1.5">
+                      {s.motive.split(':')[0]}
+                    </span>
+                    {s.motive.split(':').slice(1).join(':').trim()}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[62px_1fr] gap-2.5 text-[13.5px]">
+                  <dt className="font-['IBM_Plex_Mono'] text-[10px] tracking-[.14em] uppercase text-[#6f675a] pt-0.5">
+                    Алиби
+                  </dt>
+                  <dd className="text-[#a79d8b]">{s.alibi}</dd>
+                </div>
+              </dl>
+            </article>
           ))}
         </div>
       </main>
@@ -1139,20 +1116,12 @@ function ResultsScreen({
         </div>
 
         {myTeam && (
-          <div className="border-t border-[#2c2821] pt-4 flex justify-between items-center">
-            <div>
-              <div className="text-[14px] text-[#e8e2d6]">{myTeam.name}</div>
-              <div className="text-[12px] text-[#7d766b]">
-                {myTeam.vote
-                  ? lastResult?.correctTeamIds?.includes(myTeam.id)
-                    ? 'Верное обвинение (+500)'
-                    : 'Ошибка (−200)'
-                  : 'Не голосовали'}
-              </div>
-            </div>
-            <div className="font-['Cormorant_Garamond'] text-[32px] text-[#f1ebdf]">
-              {myTeam.score}
-            </div>
+          <div className="border-t border-[#2c2821] pt-4 text-center text-[12px] text-[#7d766b]">
+            {myTeam.vote
+              ? lastResult?.correctTeamIds?.includes(myTeam.id)
+                ? 'Ваш голос был верным'
+                : 'Ваш голос был ошибочным'
+              : 'Команда не голосовала'}
           </div>
         )}
       </main>
@@ -1187,40 +1156,26 @@ function EndScreen({ scenario }: any) {
 
         <main className="flex-1 flex flex-col items-center justify-center text-center px-7 py-10">
           <div className="relative w-[92px] h-[92px] rounded-full border border-[#b5553f73] grid place-items-center mb-9">
-            <div className="absolute inset-2 rounded-full border border-dashed border-[#b5553f4d] animate-spin" style={{ animationDuration: '24s' }} />
+            <div
+              className="absolute inset-2 rounded-full border border-dashed border-[#b5553f4d] animate-spin"
+              style={{ animationDuration: '24s' }}
+            />
             <i className="fa-solid fa-star text-[30px] text-[#b5553f]" />
           </div>
           <div className="text-[11px] tracking-[.32em] uppercase text-[#7d766b] mb-3.5">
             Дело закрыто
           </div>
-          <h1 className="font-['Cormorant_Garamond'] font-medium text-[44px] leading-[1.05] text-[#f1ebdf] mb-4">
+          <h1 className="font-['Cormorant_Garamond'] font-medium text-[44px] leading-[1.05] text-[#f1ebdf] mb-6">
             Вы были сегодня
             <br />
             <em className="text-[#c7654d] italic">великолепны</em>
           </h1>
-          <div className="w-12 h-px bg-[#b5553f] mb-5" />
-          <p className="text-[15px] text-[#a79f93] mb-10">
-            Больше игр на <b className="text-[#e8e2d6]">RestoGames</b>
+          <div className="w-12 h-px bg-[#b5553f] mb-6" />
+          <p className="font-['Cormorant_Garamond'] italic text-[19px] text-[#a79f93] leading-snug max-w-[340px]">
+            «Каждая история заканчивается. Но у хорошего детектива всегда есть следующее
+            дело.»
           </p>
-          <a
-            href="https://restogames.ru"
-            target="_blank"
-            rel="noopener"
-            className="inline-flex items-center gap-3 px-7 py-4 border border-[#b5553f] rounded text-[#f1ebdf] text-[14px] tracking-[.14em] uppercase hover:bg-[#b5553f] transition"
-          >
-            Перейти на сайт
-            <i className="fa-solid fa-arrow-right text-[#c7654d]" />
-          </a>
-          <div className="mt-3.5 text-[12px] tracking-[.08em] text-[#6f685e]">
-            restogames.ru
-          </div>
         </main>
-
-        <footer className="px-5 pb-7 text-center">
-          <p className="font-['Cormorant_Garamond'] italic text-[17px] text-[#6f685e] leading-snug">
-            «Каждая история заканчивается. Но у хорошего детектива всегда есть следующее дело.»
-          </p>
-        </footer>
       </div>
     </div>
   );

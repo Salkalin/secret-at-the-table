@@ -189,21 +189,60 @@ export default function Screen() {
         />
       )}
 
-            {phase === 'voting' && (
-        <div className="text-center py-16">
-          <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-3">
-            Голосование
-          </h2>
-          <p className="text-muted max-w-[560px] mx-auto mb-8">
-            Капитаны команд выбирают подозреваемого <b>на своих телефонах</b>.
-          </p>
-          <button
-            onClick={() => setAccuseOpen(true)}
-            className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 transition"
-          >
-            <i className="fa-solid fa-gavel" />
-            Открыть протокол обвинения
-          </button>
+      {phase === 'voting' && (
+        <div>
+          <div className="text-center mb-10">
+            <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-3">
+              Голосование
+            </h2>
+            <p className="text-muted max-w-[560px] mx-auto">
+              Капитаны команд выбирают подозреваемого <b>на своих телефонах</b>.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-[1200px] mx-auto mb-10">
+            {aliveSuspects.map((s: any) => (
+              <div
+                key={s.id}
+                className="bg-panel border border-line rounded-2xl p-5 flex flex-col"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="w-12 h-12 rounded-full grid place-items-center bg-panel2 border border-line text-accent text-lg flex-none">
+                    <i className={`fa-solid ${s.icon}`} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="font-serif text-xl text-text leading-tight">
+                      {s.name}
+                    </div>
+                    <div className="text-[10.5px] tracking-wider uppercase text-muted">
+                      {s.role}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-[13px] text-muted leading-snug mb-3">
+                  {s.description}
+                </div>
+                <div className="text-[12px] text-muted mt-auto pt-3 border-t border-line/60">
+                  <div>
+                    <span className="text-accent">Мотив:</span> {s.motive}
+                  </div>
+                  <div className="mt-1">
+                    <span className="text-accent">Алиби:</span> {s.alibi}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-center">
+            <button
+              onClick={advance}
+              disabled={busy}
+              className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
+            >
+              Подвести итоги <i className="fa-solid fa-gavel" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -223,18 +262,11 @@ export default function Screen() {
         <EndView state={state} onReset={reset} speech={speech} />
       )}
 
-      {accuseOpen && (phase === 'discussion' || phase === 'voting') && (
+      {accuseOpen && phase === 'discussion' && (
         <AccuseModal
           suspects={aliveSuspects}
           onClose={() => setAccuseOpen(false)}
-          onConfirm={() => {
-            setAccuseOpen(false);
-            if (phase === 'discussion') {
-              setAccuseOpen(false);
-            } else {
-              advance();
-            }
-          }}
+          onConfirm={() => setAccuseOpen(false)}
         />
       )}
     </div>
