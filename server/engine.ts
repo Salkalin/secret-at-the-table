@@ -31,7 +31,7 @@ export type GameState = {
 };
 
 export const ROUND_SECONDS = 600;
-export const CLUE_TIMES_SEC = [180, 300, 420, 540];
+export const CLUE_TIMES_SEC = [180, 300, 420];
 
 export const TOTAL_ROUNDS = 4;
 
@@ -128,15 +128,12 @@ export function nextPhase(s: GameState): GameState {
       const killer = sc.suspects.find(x => x.isGuilty)!;
       ns.teams.forEach(t => {
         const correct = t.vote === killer.id;
+        const isFinal = ns.round >= ns.totalRounds;
         let roundScore = 0;
         if (correct) {
-          t.score += 500;
-          roundScore = 500;
+          roundScore = isFinal ? 500 : 100;
+          t.score += roundScore;
           result.correctTeamIds.push(t.id);
-        } else if (t.vote) {
-          t.score -= 200;
-          roundScore = -200;
-          result.wrongTeamIds.push(t.id);
         }
         if (!t.roundScores) t.roundScores = [0, 0, 0, 0];
         t.roundScores[ns.round - 1] = roundScore;
@@ -149,7 +146,14 @@ export function nextPhase(s: GameState): GameState {
           ns.eliminatedSuspects.push(elimId);
           result.eliminatedId = elimId;
         }
+        ns.phase = 'results';
+      } else {
+        // 4-й раунд → сразу end
+        ns.phase = 'end';
+        ns.finishedAt = Date.now();
       }
+      ns.lastResult = result;
+      break;
       ns.lastResult = result;
       ns.phase = 'results';
       break;
@@ -159,6 +163,12 @@ export function nextPhase(s: GameState): GameState {
         ns.phase = 'end';
         ns.finishedAt = Date.now();
       } else {
+        // Раскрываем все улики прошлых раундов
+        sc.clues.forEach((c, i) => {
+          if (c.round <= ns.round && !ns.revealedClues.includes(i)) {
+            ns.revealedClues.push(i);
+          }
+        });
         ns.phase = 'story';
         ns.round += 1;
         ns.roundStartedAt = Date.now();

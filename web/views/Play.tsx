@@ -24,7 +24,7 @@ const fmt = (s: number) => {
 // RAIN CANVAS (используется на нескольких экранах)
 // ============================================================
 
-function RainCanvas({ opacity = 0.5 }: { opacity?: number }) {
+function RainCanvas({ opacity = 0.5, lightning = false }: { opacity?: number; lightning?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const c = ref.current;
@@ -33,11 +33,19 @@ function RainCanvas({ opacity = 0.5 }: { opacity?: number }) {
     if (!x) return;
     const cv = c;
     const cx = x;
+    const root = document.documentElement;
 
     let w = 0,
       h = 0;
     type Drop = { x: number; y: number; l: number; s: number; a: number };
     let drops: Drop[] = [];
+    type Bolt = { x1: number; y1: number; x2: number; y2: number };
+    let boltPoints: Bolt[] = [];
+    let boltOpacity = 0;
+    let flash = 0;
+    let nextStrike = 2.5;
+    let secondAt = 0;
+    let elapsed = 0;
 
     function resize() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -58,32 +66,103 @@ function RainCanvas({ opacity = 0.5 }: { opacity?: number }) {
         a: 0.05 + Math.random() * 0.15
       };
     }
+
+    function makeBolt() {
+      boltPoints = [];
+      function branch(sx: number, sy: number, length: number, dir: number, depth: number) {
+        const steps = 14 - depth * 4;
+        const seg = length / steps;
+        let px = sx;
+        let py = sy;
+        for (let i = 0; i < steps; i++) {
+          const nx = px + (Math.random() - 0.5) * seg * 1.6 + dir * seg * 0.35;
+          const ny = py - seg * (0.7 + Math.random() * 0.5);
+          boltPoints.push({ x1: px, y1: py, x2: nx, y2: ny });
+          if (depth < 2 && Math.random() < 0.2) {
+            branch(nx, ny, length * 0.45, Math.random() < 0.5 ? -1 : 1, depth + 1);
+          }
+          px = nx;
+          py = ny;
+        }
+      }
+      const startX = w * (0.25 + Math.random() * 0.5);
+      branch(startX, h * 0.05, h * 0.7, (Math.random() - 0.5) * 0.5, 0);
+    }
+
+    let lastT = performance.now();
     let raf = 0;
-    function draw() {
+
+    function loop(now: number) {
+      raf = requestAnimationFrame(loop);
+      const dt = Math.min((now - lastT) / 1000, 0.05);
+      lastT = now;
+      elapsed += dt;
+
+      if (lightning) {
+        if (elapsed > nextStrike) {
+          const power = 0.6 + Math.random() * 0.4;
+          makeBolt();
+          boltOpacity = power;
+          flash = power;
+          secondAt = Math.random() < 0.65 ? elapsed + 0.12 + Math.random() * 0.18 : 0;
+          nextStrike = elapsed + 7 + Math.random() * 11;
+        }
+        if (secondAt && elapsed > secondAt) {
+          flash = Math.max(flash, 0.75);
+          boltOpacity = 0.85;
+          secondAt = 0;
+        }
+        flash = Math.max(0, flash - dt * 2.4);
+        boltOpacity = Math.max(0, boltOpacity - dt * 3.5);
+        root.style.setProperty('--flash', flash.toFixed(3));
+      }
+
       cx.clearRect(0, 0, w, h);
       cx.lineWidth = 1;
+
+      // Дождь
+      cx.strokeStyle = `rgba(190, 200, 215, ${0.18 + flash * 0.4})`;
       for (const d of drops) {
-        cx.strokeStyle = `rgba(200,190,180,${d.a})`;
         cx.beginPath();
         cx.moveTo(d.x, d.y);
-        cx.lineTo(d.x, d.y + d.l);
+        cx.lineTo(d.x - 1, d.y + d.l);
         cx.stroke();
-        d.y += d.s;
+        d.y += d.s * dt * 60;
         if (d.y > h) {
           d.y = -d.l;
           d.x = Math.random() * w;
         }
       }
-      raf = requestAnimationFrame(draw);
+
+      // Молния
+      if (lightning && boltOpacity > 0.01 && boltPoints.length > 0) {
+        const offsets = [0, 0.8, -0.8];
+        cx.lineCap = 'round';
+        cx.lineJoin = 'round';
+        for (const offset of offsets) {
+          cx.strokeStyle = `rgba(220, 235, 255, ${
+            boltOpacity * (offset === 0 ? 1 : 0.45)
+          })`;
+          cx.lineWidth = offset === 0 ? 1.6 : 1;
+          cx.beginPath();
+          cx.moveTo(boltPoints[0].x1 + offset, boltPoints[0].y1);
+          for (const p of boltPoints) cx.lineTo(p.x2 + offset, p.y2);
+          cx.stroke();
+        }
+      }
     }
+
     resize();
-    draw();
     window.addEventListener('resize', resize);
+    raf = requestAnimationFrame(loop);
+
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
+      root.style.removeProperty('--flash');
     };
-  }, []);
+  }, [lightning]);
+
   return (
     <canvas
       ref={ref}
@@ -124,6 +203,37 @@ export default function Play() {
     if (saved) setNickname(saved);
   }, []);
 
+    // Авто-реконнект при перезагрузке, если уже заходили в эту сессию
+  useEffect(() => {
+    if (joined || !code) return;
+    const savedName = localStorage.getItem('detective_name');
+    const savedTeam = localStorage.getItem(`team_${code}`);
+    if (!savedName || !savedTeam) return;
+
+    setNickname(savedName);
+
+    const t = setTimeout(() => {
+      sock.current.emit(
+        'player:join',
+        {
+          code,
+          nickname: savedName,
+          wantCaptain: false,
+          reconnectTeamId: savedTeam
+        },
+        (res: any) => {
+          if (res?.error) return;
+          setJoined(true);
+          setIsCaptain(res.isCaptain);
+          setTeamId(res.teamId);
+          setState(res.state);
+        }
+      );
+    }, 400);
+
+    return () => clearTimeout(t);
+  }, [code, joined]);
+
   function join() {
     setErr('');
     const v = nickname.trim();
@@ -132,9 +242,13 @@ export default function Play() {
       return;
     }
     localStorage.setItem('detective_name', v);
+
+    const stored = localStorage.getItem(`team_${code}`);
+    const reconnectTeamId = stored || undefined;
+
     sock.current.emit(
       'player:join',
-      { code, nickname: v, wantCaptain },
+      { code, nickname: v, wantCaptain, reconnectTeamId },
       (res: any) => {
         if (res?.error) {
           setErr(
@@ -146,6 +260,7 @@ export default function Play() {
         setIsCaptain(res.isCaptain);
         setTeamId(res.teamId);
         setState(res.state);
+        if (res.teamId) localStorage.setItem(`team_${code}`, res.teamId);
       }
     );
   }
@@ -235,18 +350,13 @@ export default function Play() {
   }
 
   if (phase === 'results') {
-    return (
-      <ResultsScreen
-        scenario={scenario}
-        round={round}
-        lastResult={lastResult}
-        myTeam={myTeam}
-        elimSuspect={elimSuspect}
-      />
-    );
+    // На итогах раунда клиент показывает экран повествования — пусть смотрят большой экран
+    return <StoryScreen scenario={scenario} round={round} />;
   }
 
   if (phase === 'end') {
+    // Чистим teamId — при следующей игре это будет новая сессия
+    if (code) localStorage.removeItem(`team_${code}`);
     return <EndScreen scenario={scenario} />;
   }
 
@@ -300,7 +410,7 @@ function JoinScreen({
 
   return (
     <div className="relative min-h-screen flex justify-center bg-[#0d0b0a] text-[#e9e2da] overflow-hidden">
-      <RainCanvas opacity={0.6} />
+      <RainCanvas opacity={0.6} lightning />
 
       <div
         className="fixed top-[-20vh] left-1/2 -translate-x-1/2 w-[140vw] h-[80vh] pointer-events-none"
@@ -603,7 +713,7 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
 function IntroScreen({ scenario, isCaptain }: any) {
   return (
     <div className="relative min-h-screen flex justify-center bg-[#0e0d0c] text-[#e8e2d6] overflow-hidden">
-      <RainCanvas opacity={0.4} />
+      <RainCanvas opacity={0.4} lightning />
       <main className="relative z-[2] flex flex-col justify-center w-full max-w-[480px] px-7 py-10 text-center">
         <i className="fa-solid fa-user-secret text-[28px] text-[#b9a898] mb-7 opacity-85" />
         <div className="text-[12px] tracking-[.4em] uppercase text-[#8c7f74] mb-7">
@@ -647,7 +757,7 @@ function IntroScreen({ scenario, isCaptain }: any) {
 function StoryScreen({ scenario, round }: any) {
   return (
     <div className="relative min-h-screen flex justify-center bg-[#0e0d0c] text-[#e8e2d6] overflow-hidden">
-      <RainCanvas opacity={0.5} />
+      <RainCanvas opacity={0.5} lightning />
       <main className="relative z-[2] flex flex-col justify-center w-full max-w-[720px] px-6 py-10 text-center">
         <i className="fa-solid fa-user-secret text-[28px] text-[#b9a898] mb-7 opacity-85" />
         <div className="text-[12px] tracking-[.4em] uppercase text-[#8c7f74] mb-7">
@@ -680,7 +790,7 @@ function StoryScreen({ scenario, round }: any) {
 function DiscussionScreen({ scenario, round, isCaptain }: any) {
   return (
     <div className="relative min-h-screen flex justify-center bg-[#0d0c0b] text-[#e8e2d6] overflow-hidden">
-      <RainCanvas opacity={0.35} />
+      <RainCanvas opacity={0.35} lightning />
       <main className="relative z-[2] w-full max-w-[480px] px-5 py-6">
         <div className="flex justify-between items-center mb-6 text-[12px] text-[#8c7f74]">
           <span>{scenario.title}</span>
@@ -933,9 +1043,15 @@ function VotingScreen({
 
       <div className="fixed left-0 right-0 bottom-0 z-20 px-5 pt-4 pb-[calc(18px_+_env(safe-area-inset-bottom))] bg-gradient-to-t from-[#0d0c0b] via-[#0d0c0b] to-transparent">
         <div className="max-w-[440px] mx-auto">
-          <div className="font-['IBM_Plex_Mono'] text-[11px] tracking-[.08em] text-center text-[#6f675a] mb-2.5 min-h-[17px]">
-            {hint}
-          </div>
+        <div className="font-['IBM_Plex_Mono'] text-[11px] tracking-[.08em] text-center text-[#6f675a] mb-2.5 min-h-[17px] flex items-center justify-center gap-3">
+          <span>{hint}</span>
+          {!voted && (
+            <span className="text-[#b3261e]">
+              <i className="fa-regular fa-clock mr-1" />
+              <VotingCountdown />
+            </span>
+          )}
+        </div>
           <button
             onClick={submit}
             disabled={selected === null || !isCaptain}
@@ -979,7 +1095,7 @@ function VoteAcceptedScreen({
 
   return (
     <div className="relative min-h-screen flex justify-center bg-[#0e0d0c] text-[#e8e2d6] overflow-hidden">
-      <RainCanvas opacity={0.4} />
+      <RainCanvas opacity={0.4} lightning />
       <div className="relative z-[2] w-full max-w-[480px] min-h-screen flex flex-col">
         <header className="flex justify-between items-center px-5 py-4 text-[13px] text-[#9a9388] border-b border-white/[.06]">
           <div className="flex items-center gap-2">
@@ -1078,7 +1194,7 @@ function ResultsScreen({
 }: any) {
   return (
     <div className="relative min-h-screen flex justify-center bg-[#0e0d0c] text-[#e8e2d6] overflow-hidden">
-      <RainCanvas opacity={0.4} />
+      <RainCanvas opacity={0.4} lightning />
       <main className="relative z-[2] w-full max-w-[480px] px-6 py-10">
         <div className="text-[11px] tracking-[.32em] uppercase text-[#7d766b] text-center mb-2">
           Итог раунда
@@ -1109,11 +1225,6 @@ function ResultsScreen({
             Никто не выбывает в этом раунде.
           </div>
         )}
-
-        <div className="text-center text-[12px] text-[#7d766b] mb-6">
-          Верных обвинений: {lastResult?.correctTeamIds?.length || 0} · Ошибок:{' '}
-          {lastResult?.wrongTeamIds?.length || 0}
-        </div>
 
         {myTeam && (
           <div className="border-t border-[#2c2821] pt-4 text-center text-[12px] text-[#7d766b]">
@@ -1178,5 +1289,17 @@ function EndScreen({ scenario }: any) {
         </main>
       </div>
     </div>
+  );
+}
+function VotingCountdown() {
+  const [left, setLeft] = useState(30);
+  useEffect(() => {
+    const t = setInterval(() => setLeft(l => Math.max(0, l - 1)), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span className="font-['IBM_Plex_Mono'] tabular-nums">
+      0:{String(left).padStart(2, '0')}
+    </span>
   );
 }

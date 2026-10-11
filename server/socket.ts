@@ -99,14 +99,31 @@ export function attachSocket(io: Server) {
       cb?.({ state: E.publicState(s, { revealSolution: false }) });
     });
 
-    socket.on('player:join', async (payload: { code: string; nickname: string; wantCaptain: boolean }, cb?: any) => {
-      const { code, nickname, wantCaptain } = payload;
+    socket.on('player:join', async (payload: { code: string; nickname: string; wantCaptain: boolean; reconnectTeamId?: string }, cb?: any) => {
+      const { code, nickname, wantCaptain, reconnectTeamId } = payload;
       const s = sessions.get(code);
       if (!s) return cb?.({ error: 'not_found' });
       if (!nickname || !nickname.trim()) return cb?.({ error: 'no_name' });
 
       let teamId: string | null = null;
       let isCaptain = false;
+
+      // ---- ПЕРЕПОДКЛЮЧЕНИЕ К СУЩЕСТВУЮЩЕЙ КОМАНДЕ ----
+      if (reconnectTeamId) {
+        const existing = s.teams.find(t => t.id === reconnectTeamId);
+        if (existing) {
+          teamId = existing.id;
+          isCaptain = existing.captainName === nickname;
+          if (isCaptain) existing.captainId = socket.id;
+          socket.data = { code, teamId, isCaptain, nickname };
+          socket.join(`play:${code}`);
+          const pub = E.publicState(s, { revealSolution: false });
+          io.to(`screen:${code}`).emit('state', pub);
+          io.to(`play:${code}`).emit('state', pub);
+          return cb?.({ state: pub, teamId, isCaptain });
+        }
+      }
+      // ---- ОБЫЧНОЕ ПОДКЛЮЧЕНИЕ ----
 
       if (wantCaptain) {
         const id = Math.random().toString(36).slice(2, 10);

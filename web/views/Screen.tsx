@@ -29,6 +29,7 @@ export default function Screen() {
   const sock = useRef(getSocket());
   const speech = useSpeech();
   const [bgUrl, setBgUrl] = useState<string>('');
+  const [showResultsTable, setShowResultsTable] = useState(false);
 
   useEffect(() => {
     if (!state) return;
@@ -198,6 +199,9 @@ export default function Screen() {
             <p className="text-muted max-w-[560px] mx-auto">
               Капитаны команд выбирают подозреваемого <b>на своих телефонах</b>.
             </p>
+            <div className="mt-4 text-2xl font-mono text-accent tabular-nums">
+              <VotingCountdown />
+            </div>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-[1200px] mx-auto mb-10">
@@ -259,7 +263,19 @@ export default function Screen() {
       )}
 
       {phase === 'end' && (
-        <EndView state={state} onReset={reset} speech={speech} />
+        <EndView
+          state={state}
+          onReset={reset}
+          speech={speech}
+          onShowResults={() => setShowResultsTable(true)}
+        />
+      )}
+
+            {showResultsTable && phase === 'end' && (
+        <ResultsFullTable
+          teams={state.teams}
+          onClose={() => setShowResultsTable(false)}
+        />
       )}
 
       {accuseOpen && phase === 'discussion' && (
@@ -712,6 +728,7 @@ function Discussion({
     (now - (roundStartedAt || now) - (roundPausedTotalMs || 0) - pausedNow) / 1000
   );
   const isPaused = !!roundPausedAt;
+  const elapsedCapped = Math.min(elapsed, ROUND_SECONDS);
   const left = Math.max(0, ROUND_SECONDS - elapsed);
   const running = left > 0 && !!roundStartedAt;
 
@@ -724,7 +741,7 @@ function Discussion({
           .map((c: any, i: number) => ({ c, i }))
           .filter((x: any) => x.c.round === round);
 
-  const nextMark = clueTimesSec.find((t: number) => t > elapsed);
+  const nextMark = clueTimesSec.find((t: number) => t > elapsedCapped);
 
   const archiveClues =
     round >= 4
@@ -754,7 +771,7 @@ function Discussion({
               ? 'Таймер на паузе. Улики не появятся, пока обсуждение не продолжится.'
               : nextMark
               ? `Обсуждайте улики вслух и стройте версии. Следующая улика через ${fmt(
-                  nextMark - elapsed
+                  nextMark - elapsedCapped
                 )}.`
               : 'Все улики главы на доске. Сверьте детали и договоритесь о версии.'}
           </p>
@@ -785,7 +802,7 @@ function Discussion({
         <div className="md:col-span-2 relative h-[3px] rounded bg-white/8 my-3">
           <i
             className="absolute left-0 top-0 bottom-0 rounded bg-accent transition-all duration-1000"
-            style={{ width: `${(elapsed / ROUND_SECONDS) * 100}%` }}
+            style={{ width: `${(elapsedCapped / ROUND_SECONDS) * 100}%` }}
           />
           <div className="absolute inset-0">
             {clueTimesSec.map((t: number, i: number) => (
@@ -793,7 +810,7 @@ function Discussion({
                 key={i}
                 className={
                   'absolute top-1/2 w-[11px] h-[11px] -mt-[5.5px] -ml-[5.5px] rounded-full border-1.5 transition ' +
-                  (elapsed >= t
+                  (elapsedCapped >= t
                     ? 'bg-accent border-accent'
                     : 'bg-[#1a110d] border-line')
                 }
@@ -842,7 +859,7 @@ function Discussion({
                     <i className={`fa-solid ${c.icon} text-[13px]`} />
                   </span>
                   <b className="text-[14.5px] text-[#1d120c] font-bold">
-                    Улика {pad(i + 1)}
+                    {c.name}
                   </b>
                 </div>
                 <p className="m-0 flex-1 font-mono text-[13px] leading-relaxed text-[#3a281c]">
@@ -862,7 +879,7 @@ function Discussion({
             >
               <i className="fa-solid fa-lock text-accent text-lg opacity-70" />
               <b className="font-mono text-2xl text-text font-medium tabular-nums">
-                {fmt(Math.max(0, markTime - elapsed))}
+                {fmt(Math.max(0, markTime - elapsedCapped))}
               </b>
               <span className="text-[12px] text-muted tracking-wide">
                 до улики {pad(i + 1)}
@@ -892,7 +909,7 @@ function Discussion({
                     <i className={`fa-solid ${c.icon} text-[13px]`} />
                   </span>
                   <b className="text-[14.5px] text-[#1d120c] font-bold">
-                    Улика {pad(i + 1)}
+                    {c.name}
                   </b>
                 </div>
                 <p className="m-0 flex-1 font-mono text-[13px] leading-relaxed text-[#3a281c]">
@@ -1159,7 +1176,7 @@ function Results({
 // END (разгадка)
 // ============================================================
 
-function EndView({ state, onReset, speech }: any) {
+function EndView({ state, onReset, speech, onShowResults }: any) {
   const solution = state.solution;
   const teams = state.teams || [];
   const sorted = [...teams].sort((a: any, b: any) => b.score - a.score);
@@ -1222,15 +1239,18 @@ function EndView({ state, onReset, speech }: any) {
 
       <div className="flex gap-3 flex-wrap">
         <button
-          onClick={onReset}
-          className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90"
+          onClick={() => {
+            if (onShowResults) onShowResults();
+          }}
+          className="px-6 py-3.5 rounded-xl border border-accent text-accent font-bold text-[15px] inline-flex items-center gap-2.5 hover:bg-accent/10 transition"
         >
+          <i className="fa-solid fa-trophy" />
+          Показать итоги расследования
+        </button>
+        <button onClick={onReset} className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90">
           Сыграть это дело снова
         </button>
-        <a
-          href="/host"
-          className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] inline-flex items-center"
-        >
+        <a href="/host" className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] inline-flex items-center">
           Новое дело
         </a>
       </div>
@@ -1335,6 +1355,79 @@ function AccuseModal({
           >
             Отмена
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VotingCountdown() {
+  const [left, setLeft] = useState(30);
+  useEffect(() => {
+    const t = setInterval(() => setLeft(l => Math.max(0, l - 1)), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return <span>0:{String(left).padStart(2, '0')}</span>;
+}
+
+function ResultsFullTable({ teams, onClose }: any) {
+  const sorted = [...(teams || [])].sort((a: any, b: any) => b.score - a.score);
+  const fmtScore = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+  return (
+    <div className="fixed inset-0 z-30 bg-[rgba(8,4,3,.92)] grid place-items-center p-6 overflow-y-auto">
+      <div className="max-w-[900px] w-full bg-panel border border-line rounded-2xl p-8 my-8">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="font-serif text-4xl text-text font-semibold m-0">
+            Итоги расследования
+          </h2>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full border border-line bg-white/[.04] grid place-items-center text-text hover:bg-white/10"
+          >
+            <i className="fa-solid fa-xmark text-sm" />
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
+            <thead>
+              <tr>
+                {['Место', 'Команда', 'Р1', 'Р2', 'Р3', 'Р4', 'Итого'].map(h => (
+                  <th key={h} className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((t: any, i: number) => {
+                const rs = t.roundScores || [0, 0, 0, 0];
+                return (
+                  <tr key={t.id} className="border-b border-line last:border-0">
+                    <td className="p-4">
+                      {i === 0 ? (
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent text-white">
+                          <i className="fa-solid fa-crown text-[12px]" />
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-panel2 text-muted font-semibold text-[13px]">
+                          {i + 1}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 text-text">{t.name}</td>
+                    {[0, 1, 2, 3].map(ri => (
+                      <td key={ri} className={'p-4 text-right tabular-nums ' + (rs[ri] < 0 ? 'text-accent' : rs[ri] > 0 ? 'text-green-400' : 'text-muted')}>
+                        {rs[ri] === 0 ? '—' : fmtScore(rs[ri])}
+                      </td>
+                    ))}
+                    <td className="p-4 text-right font-serif text-2xl font-bold text-text tabular-nums">
+                      {t.score}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
