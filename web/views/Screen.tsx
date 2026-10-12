@@ -46,8 +46,8 @@ export default function Screen() {
     if (!state) return;
     const sc = state.scenario;
     const ch = state.chapter;
-    // Фон только для intro, story, lobby
-    const showBg = ['intro', 'story', 'lobby'].includes(state.phase);
+    // Фон только для intro и story
+    const showBg = ['intro', 'story'].includes(state.phase);
     const url = showBg
       ? ch?.bg || sc?.bg || ''
       : '';
@@ -146,10 +146,6 @@ export default function Screen() {
       {phase === 'story' && round === 2 && <Chapter2Scene />}
       {phase === 'story' && round === 3 && <Chapter3Scene />}
       {phase === 'story' && round >= 4 && <FinalScene />}
-      {phase === 'discussion' && round === 1 && <Chapter1Scene />}
-      {phase === 'discussion' && round === 2 && <Chapter2Scene />}
-      {phase === 'discussion' && round === 3 && <Chapter3Scene />}
-      {phase === 'discussion' && round >= 4 && <FinalScene />}
       {phase === 'results' && round === 1 && <OlegScene />}
       {phase === 'results' && round === 2 && <DmitryScene />}
       {phase === 'results' && round === 3 && <MariaScene />}
