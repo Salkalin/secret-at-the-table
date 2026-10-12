@@ -4,7 +4,18 @@ import QRCode from 'qrcode';
 import { getSocket } from '../socket';
 import { useSpeech } from '../SpeechContext';
 import { ROMAN, GAME_RULES, GAME_NOTE, REVEAL_MARKS, ROUND_SECONDS } from '../landing/data';
-import { IntroScene, Chapter1Scene, Chapter2Scene, Chapter3Scene, FinalScene } from '../screens';
+import {
+  IntroScene,
+  Chapter1Scene,
+  Chapter2Scene,
+  Chapter3Scene,
+  FinalScene,
+  OlegScene,
+  DmitryScene,
+  MariaScene,
+  ViktorScene,
+  ElenaScene
+} from '../screens';
 
 const fmt = (s: number) => {
   s = Math.max(0, s);
@@ -128,12 +139,22 @@ export default function Screen() {
           <div className="absolute inset-0 bg-gradient-to-b from-[rgba(13,8,7,0.6)] via-[rgba(13,8,7,0.3)] to-[rgba(13,8,7,0.9)]" />
         </div>
       )
-      }      {/* SVG-сцены по фазам */}
+      }      
+            {/* SVG-сцены по фазам */}
       {phase === 'intro' && <IntroScene />}
       {phase === 'story' && round === 1 && <Chapter1Scene />}
       {phase === 'story' && round === 2 && <Chapter2Scene />}
       {phase === 'story' && round === 3 && <Chapter3Scene />}
-      {phase === 'story' && round === 4 && <FinalScene />}      
+      {phase === 'story' && round >= 4 && <FinalScene />}
+      {phase === 'discussion' && round === 1 && <Chapter1Scene />}
+      {phase === 'discussion' && round === 2 && <Chapter2Scene />}
+      {phase === 'discussion' && round === 3 && <Chapter3Scene />}
+      {phase === 'discussion' && round >= 4 && <FinalScene />}
+      {phase === 'results' && round === 1 && <OlegScene />}
+      {phase === 'results' && round === 2 && <DmitryScene />}
+      {phase === 'results' && round === 3 && <MariaScene />}
+      {phase === 'results' && round >= 4 && <ViktorScene />}
+      {phase === 'end' && <ElenaScene />}    
 
       <Header
         phase={phase}

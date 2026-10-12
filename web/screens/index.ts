@@ -3,3 +3,8 @@ export { default as Chapter1Scene } from './Chapter1Scene';
 export { default as Chapter2Scene } from './Chapter2Scene';
 export { default as Chapter3Scene } from './Chapter3Scene';
 export { default as FinalScene } from './FinalScene';
+export { default as OlegScene } from './OlegScene';
+export { default as DmitryScene } from './DmitryScene';
+export { default as MariaScene } from './MariaScene';
+export { default as ViktorScene } from './ViktorScene';
+export { default as ElenaScene } from './ElenaScene';
