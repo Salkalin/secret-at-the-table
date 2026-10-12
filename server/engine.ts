@@ -1,6 +1,6 @@
 import { SCENARIOS, Scenario } from './scenarios.js';
 
-export type Phase = 'lobby' | 'intro' | 'story' | 'discussion' | 'voting' | 'results' | 'end';
+export type Phase = 'lobby' | 'intro' | 'story' | 'discussion' | 'voting' | 'results' | 'results-final' | 'end';
 
 export type TeamState = {
   id: string;
@@ -108,6 +108,7 @@ export function nextPhase(s: GameState): GameState {
       ns.phase = 'story';
       ns.round = 1;
       ns.roundStartedAt = Date.now();
+      ns.roundDurationSec = 600;
       break;
     case 'story':
       ns.phase = 'discussion';
@@ -148,9 +149,9 @@ export function nextPhase(s: GameState): GameState {
         }
         ns.phase = 'results';
       } else {
-        // 4-й раунд → сразу end
-        ns.phase = 'end';
-        ns.finishedAt = Date.now();
+        // 4-й раунд → сначала results (Виктор), потом end
+        ns.phase = 'results';
+        ns.round = 4;
       }
       ns.lastResult = result;
       break;
@@ -172,10 +173,18 @@ export function nextPhase(s: GameState): GameState {
         ns.phase = 'story';
         ns.round += 1;
         ns.roundStartedAt = Date.now();
+        // Раунд 4 — 5 минут, остальные — 10
+        ns.roundDurationSec = ns.round >= ns.totalRounds ? 300 : 600;
       }
       break;
     case 'end':
+      // По кнопке «Итоги расследования» ведущий переходит на финальный экран
+      ns.phase = 'results-final';
+      break;
     default:
+      break;
+    case 'results-final':
+      // финальный экран — уже никуда не идём
       break;
   }
   return ns;

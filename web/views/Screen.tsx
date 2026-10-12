@@ -30,17 +30,17 @@ export default function Screen() {
   const sock = useRef(getSocket());
   const speech = useSpeech();
   const [bgUrl, setBgUrl] = useState<string>('');
-  const [showResultsTable, setShowResultsTable] = useState(false);
 
   useEffect(() => {
     if (!state) return;
     const sc = state.scenario;
     const ch = state.chapter;
-    const url =
-      (state.phase === 'story' || state.phase === 'discussion') && ch?.bg
-        ? ch.bg
-        : sc?.bg || '';
-    if (url && url !== bgUrl) setBgUrl(url);
+    // Фон только для intro, story, lobby
+    const showBg = ['intro', 'story', 'lobby'].includes(state.phase);
+    const url = showBg
+      ? ch?.bg || sc?.bg || ''
+      : '';
+    setBgUrl(url);
   }, [state?.phase, state?.round, state?.chapter?.bg, state?.scenario?.bg]);
 
   useEffect(() => {
@@ -133,12 +133,7 @@ export default function Screen() {
       {phase === 'story' && round === 1 && <Chapter1Scene />}
       {phase === 'story' && round === 2 && <Chapter2Scene />}
       {phase === 'story' && round === 3 && <Chapter3Scene />}
-      {phase === 'story' && round === 4 && <FinalScene />}
-      {phase === 'discussion' && round === 1 && <Chapter1Scene />}
-      {phase === 'discussion' && round === 2 && <Chapter2Scene />}
-      {phase === 'discussion' && round === 3 && <Chapter3Scene />}
-      {phase === 'discussion' && round === 4 && <FinalScene />}
-      
+      {phase === 'story' && round === 4 && <FinalScene />}      
 
       <Header
         phase={phase}
@@ -279,16 +274,14 @@ export default function Screen() {
           state={state}
           onReset={reset}
           speech={speech}
-          onShowResults={() => setShowResultsTable(true)}
+          onShowResults={advance}
         />
       )}
 
-            {showResultsTable && phase === 'end' && (
-        <ResultsFullTable
-          teams={state.teams}
-          onClose={() => setShowResultsTable(false)}
-        />
+      {phase === 'results-final' && (
+        <ResultsFinal teams={teams} onReset={reset} />
       )}
+
 
       {accuseOpen && phase === 'discussion' && (
         <AccuseModal
@@ -523,7 +516,7 @@ function Intro({ scenario, advance, goBack, busy }: any) {
     <div className="grid md:grid-cols-2 gap-10 lg:gap-16 items-start">
       <div>
         <div className="text-[11px] font-bold tracking-[.2em] uppercase text-accent mb-3">
-          Дело открыто
+          Дело № 001 · классический режим
         </div>
         <h1 className="font-serif text-[clamp(44px,5.5vw,72px)] leading-none text-text font-semibold mb-4">
           {scenario.title}
@@ -552,11 +545,10 @@ function Intro({ scenario, advance, goBack, busy }: any) {
             <dd className="m-0 text-[15px] text-text">{scenario.location}</dd>
           </div>
           <div>
-            <dt className="text-[10.5px] tracking-[.2em] uppercase text-accent font-bold mb-1.5">
-              Формат
-            </dt>
-            <dd className="m-0 text-[15px] text-text">
+            <dt className="text-xs uppercase tracking-widest text-accent">Формат</dt>
+            <dd className="text-muted">
               4 раунда расследования · {scenario.suspects.length} подозреваемых
+              {scenario.clues ? ` · ${scenario.clues.length} улик` : ''}
             </dd>
           </div>
         </dl>
@@ -568,13 +560,6 @@ function Intro({ scenario, advance, goBack, busy }: any) {
             className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
           >
             Начать первый раунд <i className="fa-solid fa-arrow-right" />
-          </button>
-          <button
-            onClick={goBack}
-            disabled={busy}
-            className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] disabled:opacity-40"
-          >
-            К выбору дела
           </button>
         </div>
       </div>
@@ -776,16 +761,16 @@ function Discussion({
             <i className="fa-solid fa-hourglass-half text-accent" />
             Совещание детективов
           </span>
-          <p className="mt-3.5 mb-0 text-[14px] text-[#b9a898] leading-snug max-w-[460px]">
+          <p className="mt-3.5 mb-0 text-[14px] text-[#b9a898] leading-snug whitespace-nowrap overflow-hidden text-ellipsis">
             {left <= 0
-              ? 'Время раунда вышло. Переходите к следующей главе или выдвигайте обвинение.'
+              ? 'Время раунда вышло'
               : isPaused
-              ? 'Таймер на паузе. Улики не появятся, пока обсуждение не продолжится.'
+              ? 'Таймер на паузе'
+              : round >= 4
+              ? 'Все улики на доске'
               : nextMark
-              ? `Обсуждайте улики вслух и стройте версии. Следующая улика через ${fmt(
-                  nextMark - elapsedCapped
-                )}.`
-              : 'Все улики главы на доске. Сверьте детали и договоритесь о версии.'}
+              ? `Следующая улика через ${fmt(nextMark - elapsedCapped)}`
+              : 'Все улики на доске'}
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -816,6 +801,7 @@ function Discussion({
             className="absolute left-0 top-0 bottom-0 rounded bg-accent transition-all duration-1000"
             style={{ width: `${(elapsedCapped / ROUND_SECONDS) * 100}%` }}
           />
+          {round < 4 && (
           <div className="absolute inset-0">
             {clueTimesSec.map((t: number, i: number) => (
               <span
@@ -839,6 +825,7 @@ function Discussion({
               </span>
             ))}
           </div>
+          )}
         </div>
       </div>
 
@@ -939,13 +926,12 @@ function Discussion({
       <div className="flex gap-3 mt-10 pt-6 border-t border-line flex-wrap">
         <button
           onClick={advance}
-          disabled={busy}
+          disabled={busy || left > 0}
           className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
         >
-          {round >= 4 ? 'Финальная разгадка' : `Глава ${ROMAN[round] || round + 1}`}{' '}
+          {round >= 4 ? 'Финальная разгадка' : 'Голосование'}{' '}
           <i className="fa-solid fa-arrow-right" />
         </button>
-  
       </div>
     </div>
   );
@@ -1037,94 +1023,32 @@ function Results({
 
   // ===== Последний раунд — турнирная таблица =====
   if (isLast) {
-    const sorted = [...teams].sort((a: any, b: any) => b.score - a.score);
     return (
       <div>
-        <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-3">
-          Итоги раунда {round}
+        <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-8">
+          Вердикт следствия
         </h2>
-        <p className="text-[15px] text-[#b3a698] leading-snug max-w-[720px] mb-8">
-          С вами были <b className="text-accent font-semibold">ваш ресторан</b> и{' '}
-          <b className="text-accent font-semibold">Тайна за столом</b>. До встречи в
-          новых расследованиях!
-        </p>
 
-        <h3 className="font-serif text-[26px] text-text mb-4">Турнирная таблица</h3>
-        <div className="bg-panel border border-line rounded-2xl overflow-x-auto mb-8">
-          <table className="w-full text-sm min-w-[560px]">
-            <thead>
-              <tr>
-                <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">
-                  Место
-                </th>
-                <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">
-                  Команда
-                </th>
-                <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">
-                  Р1
-                </th>
-                <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">
-                  Р2
-                </th>
-                <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">
-                  Р3
-                </th>
-                <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">
-                  Р4
-                </th>
-                <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">
-                  Итого
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((t: any, i: number) => {
-                const rs = t.roundScores || [0, 0, 0, 0];
-                return (
-                  <tr
-                    key={t.id}
-                    className="border-b border-line last:border-0 hover:bg-panel2/50 transition"
-                  >
-                    <td className="p-4">
-                      {i === 0 ? (
-                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent text-white">
-                          <i className="fa-solid fa-crown text-[12px]" />
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-panel2 text-muted font-semibold text-[13px]">
-                          {i + 1}
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-4 text-text">{t.name}</td>
-                    {[0, 1, 2, 3].map(ri => (
-                      <td
-                        key={ri}
-                        className={
-                          'p-4 text-right tabular-nums ' +
-                          (rs[ri] < 0
-                            ? 'text-accent'
-                            : rs[ri] > 0
-                            ? 'text-green-400'
-                            : 'text-muted')
-                        }
-                      >
-                        {rs[ri] === 0 ? '—' : fmtScore(rs[ri])}
-                      </td>
-                    ))}
-                    <td
-                      className={
-                        'p-4 text-right font-serif text-2xl font-bold tabular-nums ' +
-                        (t.score < 0 ? 'text-accent' : 'text-text')
-                      }
-                    >
-                      {t.score}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="bg-panel border border-line rounded-2xl p-8 md:p-12 mb-10">
+          <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-accent mb-4">
+            Подозрения сняты
+          </div>
+          <div className="flex items-center gap-5 mb-5 flex-wrap">
+            <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-accent text-accent text-3xl">
+              <i className="fa-solid fa-briefcase" />
+            </span>
+            <div>
+              <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
+                Виктор
+              </div>
+              <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
+                Бывший партнёр
+              </div>
+            </div>
+          </div>
+          <p className="text-[15px] text-muted leading-relaxed m-0">
+            {suspects.find((s: any) => s.id === 's5')?.verdict || ''}
+          </p>
         </div>
 
         <button
@@ -1240,14 +1164,6 @@ function EndView({ state, onReset, speech, onShowResults }: any) {
           )}
         </div>
       )}
-
-      <div
-        className={
-          'border rounded-2xl p-6 mb-8 max-w-[820px] ' +
-          (someoneRight ? 'border-accent bg-panel2' : 'border-line bg-panel')
-        }
-      >
-      </div>
 
       <div className="flex gap-3 flex-wrap">
         <button
@@ -1382,66 +1298,72 @@ function VotingCountdown() {
   return <span>0:{String(left).padStart(2, '0')}</span>;
 }
 
-function ResultsFullTable({ teams, onClose }: any) {
+function ResultsFinal({ teams, onReset }: any) {
   const sorted = [...(teams || [])].sort((a: any, b: any) => b.score - a.score);
   const fmtScore = (n: number) => (n > 0 ? `+${n}` : `${n}`);
   return (
-    <div className="fixed inset-0 z-30 bg-[rgba(8,4,3,.92)] grid place-items-center p-6 overflow-y-auto">
-      <div className="max-w-[900px] w-full bg-panel border border-line rounded-2xl p-8 my-8">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="font-serif text-4xl text-text font-semibold m-0">
-            Итоги расследования
-          </h2>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-full border border-line bg-white/[.04] grid place-items-center text-text hover:bg-white/10"
-          >
-            <i className="fa-solid fa-xmark text-sm" />
-          </button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[560px]">
-            <thead>
-              <tr>
-                {['Место', 'Команда', 'Р1', 'Р2', 'Р3', 'Р4', 'Итого'].map(h => (
-                  <th key={h} className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((t: any, i: number) => {
-                const rs = t.roundScores || [0, 0, 0, 0];
-                return (
-                  <tr key={t.id} className="border-b border-line last:border-0">
-                    <td className="p-4">
-                      {i === 0 ? (
-                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent text-white">
-                          <i className="fa-solid fa-crown text-[12px]" />
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-panel2 text-muted font-semibold text-[13px]">
-                          {i + 1}
-                        </span>
-                      )}
+    <div>
+      <h1 className="font-serif text-[clamp(44px,5.5vw,72px)] leading-none text-text font-semibold mb-3">
+        Итоги расследования
+      </h1>
+      <p className="text-[15px] text-[#b3a698] leading-snug max-w-[720px] mb-8">
+        С вами были <b className="text-accent font-semibold">ваш ресторан</b> и{' '}
+        <b className="text-accent font-semibold">Тайна за столом</b>. До встречи в новых
+        расследованиях!
+      </p>
+
+      <div className="bg-panel border border-line rounded-2xl overflow-x-auto mb-10">
+        <table className="w-full text-sm min-w-[560px]">
+          <thead>
+            <tr>
+              <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Место</th>
+              <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Команда</th>
+              <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Р1</th>
+              <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Р2</th>
+              <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Р3</th>
+              <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Р4</th>
+              <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Итого</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((t: any, i: number) => {
+              const rs = t.roundScores || [0, 0, 0, 0];
+              return (
+                <tr key={t.id} className="border-b border-line last:border-0">
+                  <td className="p-4">
+                    {i === 0 ? (
+                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent text-white">
+                        <i className="fa-solid fa-crown text-[12px]" />
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-panel2 text-muted font-semibold text-[13px]">
+                        {i + 1}
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-4 text-text">{t.name}</td>
+                  {[0, 1, 2, 3].map(ri => (
+                    <td key={ri} className={'p-4 text-right tabular-nums ' + (rs[ri] < 0 ? 'text-accent' : rs[ri] > 0 ? 'text-green-400' : 'text-muted')}>
+                      {rs[ri] === 0 ? '—' : fmtScore(rs[ri])}
                     </td>
-                    <td className="p-4 text-text">{t.name}</td>
-                    {[0, 1, 2, 3].map(ri => (
-                      <td key={ri} className={'p-4 text-right tabular-nums ' + (rs[ri] < 0 ? 'text-accent' : rs[ri] > 0 ? 'text-green-400' : 'text-muted')}>
-                        {rs[ri] === 0 ? '—' : fmtScore(rs[ri])}
-                      </td>
-                    ))}
-                    <td className="p-4 text-right font-serif text-2xl font-bold text-text tabular-nums">
-                      {t.score}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  ))}
+                  <td className="p-4 text-right font-serif text-2xl font-bold text-text tabular-nums">{t.score}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex gap-3 flex-wrap">
+        <button onClick={onReset} className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90">
+          Сыграть это дело снова
+        </button>
+        <a href="/host" className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] inline-flex items-center">
+          Новое дело
+        </a>
       </div>
     </div>
   );
 }
+
