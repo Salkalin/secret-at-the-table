@@ -8,11 +8,7 @@ type Props = {
 
 export default function Nav({ onCabinet, onGo, onTop }: Props) {
   const links = [
-    { id: 'l-how', label: 'Как играть' },
-    { id: 'l-gallery', label: 'Фото' },
-    { id: 'l-video', label: 'Видео' },
-    { id: 'l-reviews', label: 'Отзывы' },
-    { id: 'l-biz', label: 'Ресторанам' }
+    { id: 'l-cases', label: 'Дела' }
   ];
 
   return (

@@ -207,6 +207,55 @@ export default function FinalScene() {
         <rect x="532" y="632" width="16" height="112" fill="#100a07" />
         <rect x="1052" y="632" width="16" height="112" fill="#100a07" />
 
+        
+        {/* Бумаги и фото на столе */}
+        <g>
+          {[
+            [650, 540, -8, 'p'],
+            [560, 590, 15, 'p'],
+            [845, 588, 5, 'p'],
+            [985, 556, -18, 'p'],
+            [1036, 596, 22, 'p'],
+            [742, 560, 12, 'p'],
+            [620, 580, -12, 'photo'],
+            [700, 586, 8, 'photo'],
+            [880, 560, -5, 'photo'],
+            [952, 590, 14, 'photo'],
+            [766, 598, -20, 'photo'],
+            [832, 540, 24, 'photo']
+          ].map(([x, y, rot, type]: any, i) => (
+            <g key={i} transform={`translate(${x} ${y}) scale(1 .5) rotate(${rot})`}>
+              {type === 'photo' ? (
+                <>
+                  <rect x="-19" y="-15" width="38" height="30" fill="#d6c9ae" />
+                  <rect x="-15" y="-11" width="30" height="20" fill="#2b2622" />
+                  <circle cx="0" cy="-3" r="4" fill="#5a5048" />
+                  <rect x="-6" y="1" width="12" height="8" fill="#5a5048" />
+                </>
+              ) : (
+                <>
+                  <rect x="-24" y="-17" width="48" height="34" fill="#bdae90" />
+                  <path
+                    d="M-18 -9H14M-18 -3H18M-18 3H10M-18 9H16"
+                    stroke="#6d604c"
+                    strokeWidth="1.2"
+                  />
+                </>
+              )}
+            </g>
+          ))}
+
+          {/* Бумага, свисающая со стола */}
+          <g transform="translate(900 612) rotate(6)">
+            <rect x="-24" y="-17" width="48" height="34" fill="#bdae90" />
+            <path
+              d="M-18 -9H14M-18 -3H18M-18 3H10M-18 9H16"
+              stroke="#6d604c"
+              strokeWidth="1.2"
+            />
+          </g>
+        </g>
+
         <g fill="#0e0907" filter="url(#fnrimWarm)">
           <ellipse cx="606" cy="552" rx="30" ry="7" />
           <path d="M588 552C588 536 594 530 606 530C618 530 624 536 624 552Z" />
@@ -280,6 +329,43 @@ export default function FinalScene() {
         </g>
 
         <rect width="1600" height="900" fill="url(#fnvig)" />
+
+
+        {/* Бумаги и фото на полу */}
+        <g opacity=".55">
+          {[
+            [430, 770, 25, 'p'],
+            [620, 810, -14, 'p'],
+            [710, 860, 40, 'photo'],
+            [930, 800, -30, 'p'],
+            [1120, 770, 12, 'photo'],
+            [1215, 850, -8, 'p'],
+            [350, 850, -35, 'photo'],
+            [820, 760, 60, 'p'],
+            [520, 720, -5, 'photo']
+          ].map(([x, y, rot, type]: any, i) => (
+            <g key={i} transform={`translate(${x} ${y}) scale(1 .5) rotate(${rot})`}>
+              {type === 'photo' ? (
+                <>
+                  <rect x="-19" y="-15" width="38" height="30" fill="#d6c9ae" />
+                  <rect x="-15" y="-11" width="30" height="20" fill="#2b2622" />
+                  <circle cx="0" cy="-3" r="4" fill="#5a5048" />
+                  <rect x="-6" y="1" width="12" height="8" fill="#5a5048" />
+                </>
+              ) : (
+                <>
+                  <rect x="-24" y="-17" width="48" height="34" fill="#bdae90" />
+                  <path
+                    d="M-18 -9H14M-18 -3H18M-18 3H10M-18 9H16"
+                    stroke="#6d604c"
+                    strokeWidth="1.2"
+                  />
+                </>
+              )}
+            </g>
+          ))}
+        </g>
+
       </svg>
 
       <div

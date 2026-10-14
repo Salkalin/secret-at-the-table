@@ -19,9 +19,12 @@ export default function RainBackground({ onStrike }: { onStrike?: () => void } =
     const drops: { x: number; y: number; len: number; spd: number }[] = [];
 
     // ========== МОЛНИИ ==========
-    type Bolt = { x1: number; y1: number; x2: number; y2: number };
-    let boltPoints: Bolt[] = [];
-    let boltOpacity = 0;
+    type Bolt = {
+      pts: [number, number][];
+      branches: [number, number][][];
+      life: number;
+    };
+    let bolt: Bolt | null = null;
     let flash = 0;
     let nextStrike = 2.5;
     let secondAt = 0;
@@ -41,56 +44,40 @@ export default function RainBackground({ onStrike }: { onStrike?: () => void } =
       }
     }
 
-    function makeBolt() {
-      boltPoints = [];
+    function makeBolt(): Bolt {
+      // Основная линия: рваная, сверху вниз
+      let x = cv.width * (0.15 + Math.random() * 0.7);
+      let y = 0;
+      const pts: [number, number][] = [[x, y]];
 
-      function branch(
-        startX: number,
-        startY: number,
-        length: number,
-        direction: number,
-        depth: number
-      ) {
-        const steps = 14 - depth * 4;
-        const seg = length / steps;
-        let px = startX;
-        let py = startY;
+      const endY = cv.height * (0.45 + Math.random() * 0.35);
+      while (y < endY) {
+        x += (Math.random() - 0.5) * 60;
+        y += 15 + Math.random() * 30;
+        pts.push([x, y]);
+      }
 
-        for (let i = 0; i < steps; i++) {
-          const nx =
-            px + (Math.random() - 0.5) * seg * 1.6 + direction * seg * 0.35;
-          const ny = py - seg * (0.7 + Math.random() * 0.5);
-
-          boltPoints.push({ x1: px, y1: py, x2: nx, y2: ny });
-
-          if (depth < 2 && Math.random() < 0.2) {
-            branch(
-              nx,
-              ny,
-              length * 0.45,
-              Math.random() < 0.5 ? -1 : 1,
-              depth + 1
-            );
+      // Ветви от каждой 3-й точки
+      const branches: [number, number][][] = [];
+      for (let i = 2; i < pts.length - 2; i += 3) {
+        if (Math.random() < 0.5) {
+          let [bx, by] = pts[i];
+          const b: [number, number][] = [[bx, by]];
+          const dir = Math.random() < 0.5 ? -1 : 1;
+          for (let k = 0; k < 5; k++) {
+            bx += dir * (10 + Math.random() * 25);
+            by += 12 + Math.random() * 20;
+            b.push([bx, by]);
           }
-
-          px = nx;
-          py = ny;
+          branches.push(b);
         }
       }
 
-      const startX = cv.width * (0.25 + Math.random() * 0.5);
-      branch(
-        startX,
-        cv.height * 0.05,
-        cv.height * 0.7,
-        (Math.random() - 0.5) * 0.5,
-        0
-      );
+      return { pts, branches, life: 22 };
     }
 
     function strike(power: number) {
-      makeBolt();
-      boltOpacity = power;
+      bolt = makeBolt();
       flash = power;
       onStrike?.();
     }
@@ -107,20 +94,21 @@ export default function RainBackground({ onStrike }: { onStrike?: () => void } =
       elapsed += dt;
 
       if (elapsed > nextStrike) {
+        bolt = makeBolt();
         const power = 0.6 + Math.random() * 0.4;
-        strike(power);
+        flash = power;
         secondAt =
           Math.random() < 0.65 ? elapsed + 0.12 + Math.random() * 0.18 : 0;
         nextStrike = elapsed + 7 + Math.random() * 11;
       }
       if (secondAt && elapsed > secondAt) {
         flash = Math.max(flash, 0.75);
-        boltOpacity = 0.85;
+        if (bolt) bolt.life = 22;
         secondAt = 0;
       }
 
       flash = Math.max(0, flash - dt * 2.4);
-      boltOpacity = Math.max(0, boltOpacity - dt * 3.5);
+      if (bolt) bolt.life -= 0.9; // затухание
 
       root.style.setProperty('--flash', flash.toFixed(3));
 
@@ -143,24 +131,34 @@ export default function RainBackground({ onStrike }: { onStrike?: () => void } =
         }
       }
 
-      // Молния
-      if (boltOpacity > 0.01 && boltPoints.length > 0) {
-        const offsets = [0, 0.8, -0.8];
+      // Молния — рваная, с ветвями и свечением
+      if (bolt && bolt.life > 0) {
+        const a = Math.min(1, bolt.life / 10) * (Math.random() < 0.2 ? 0.4 : 1);
+
         cx.lineCap = 'round';
         cx.lineJoin = 'round';
+        cx.shadowColor = 'rgba(200, 210, 255, 0.8)';
+        cx.shadowBlur = 18;
 
-        for (const offset of offsets) {
-          cx.strokeStyle = `rgba(220, 235, 255, ${
-            boltOpacity * (offset === 0 ? 1 : 0.45)
-          })`;
-          cx.lineWidth = offset === 0 ? 1.6 : 1;
+        // Основная линия
+        cx.strokeStyle = `rgba(230, 235, 255, ${a})`;
+        cx.lineWidth = 2.5;
+        cx.beginPath();
+        cx.moveTo(bolt.pts[0][0], bolt.pts[0][1]);
+        for (const [px, py] of bolt.pts) cx.lineTo(px, py);
+        cx.stroke();
+
+        // Ветви
+        cx.strokeStyle = `rgba(230, 235, 255, ${a * 0.7})`;
+        cx.lineWidth = 1.2;
+        for (const b of bolt.branches) {
           cx.beginPath();
-          cx.moveTo(boltPoints[0].x1 + offset, boltPoints[0].y1);
-          for (const p of boltPoints) {
-            cx.lineTo(p.x2 + offset, p.y2);
-          }
+          cx.moveTo(b[0][0], b[0][1]);
+          for (const [px, py] of b) cx.lineTo(px, py);
           cx.stroke();
         }
+
+        cx.shadowBlur = 0;
       }
     }
 

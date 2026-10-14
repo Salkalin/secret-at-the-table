@@ -426,18 +426,29 @@ export default function ThreeScene() {
     const drops = new THREE.Points(gGeo, dropMat);
     scene.add(drops);
 
-    // ---- Молния ----
-    const BOLT_N = 22;
+    // ---- Молния (рваная, с ветвями, свечением) ----
+    const MAX_BOLT = 1200;
     const boltGeo = new THREE.BufferGeometry();
-    boltGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(BOLT_N * 3), 3));
+    boltGeo.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(MAX_BOLT * 3), 3)
+    );
+    boltGeo.setDrawRange(0, 0);
     const boltMat = new THREE.LineBasicMaterial({
-      color: 0xffffff,
+      color: 0xe8efff,
       transparent: true,
       opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
       fog: false
     });
-    const bolt = new THREE.Line(boltGeo, boltMat);
-    scene.add(bolt);
+    // 3 линии с лёгким смещением — эффект «толщины» и свечения
+    const bolts = [0, 0.06, -0.06].map(offset => {
+      const b = new THREE.LineSegments(boltGeo, boltMat);
+      b.position.x = offset;
+      scene.add(b);
+      return b;
+    });
 
     const stormLight = new THREE.DirectionalLight(0xffffff, 0);
     stormLight.position.set(8, 6, -25);
@@ -448,17 +459,60 @@ export default function ThreeScene() {
     let echo = -1;
 
     function strike(t: number) {
-      const bx = 4 + Math.random() * 36;
       const p = boltGeo.attributes.position.array as Float32Array;
-      let x = bx;
-      for (let i = 0; i < BOLT_N; i++) {
-        x += (Math.random() - 0.5) * 1.6;
-        p[i * 3] = x;
-        p[i * 3 + 1] = 16 - i * (15 / (BOLT_N - 1));
-        p[i * 3 + 2] = -36;
+      let n = 0;
+
+      // Основная линия — рваная, сверху вниз
+      let x = (Math.random() - 0.5) * 26;
+      let y = 11;
+      const pts: [number, number][] = [[x, y]];
+
+      const endY = -6 - Math.random() * 4;
+      while (y > endY) {
+        x += (Math.random() - 0.5) * 2.4;
+        y -= 0.8 + Math.random() * 1.4;
+        pts.push([x, y]);
       }
+
+      // Пишем основную линию в буфер (сегментами)
+      for (let i = 0; i < pts.length - 1; i++) {
+        if (n + 2 > MAX_BOLT) break;
+        p[n * 3] = pts[i][0];
+        p[n * 3 + 1] = pts[i][1];
+        p[n * 3 + 2] = -36;
+        p[(n + 1) * 3] = pts[i + 1][0];
+        p[(n + 1) * 3 + 1] = pts[i + 1][1];
+        p[(n + 1) * 3 + 2] = -36;
+        n += 2;
+      }
+
+      // Ветви от каждой 3-й точки
+      for (let i = 2; i < pts.length - 2; i += 3) {
+        if (Math.random() > 0.5) continue;
+        let [bx, by] = pts[i];
+        const dir = Math.random() < 0.5 ? -1 : 1;
+        let prevX = bx;
+        let prevY = by;
+        for (let k = 0; k < 5; k++) {
+          if (n + 2 > MAX_BOLT) break;
+          bx += dir * (0.4 + Math.random() * 1.2);
+          by -= 0.6 + Math.random() * 1.0;
+          p[n * 3] = prevX;
+          p[n * 3 + 1] = prevY;
+          p[n * 3 + 2] = -36;
+          p[(n + 1) * 3] = bx;
+          p[(n + 1) * 3 + 1] = by;
+          p[(n + 1) * 3 + 2] = -36;
+          n += 2;
+          prevX = bx;
+          prevY = by;
+        }
+      }
+
       boltGeo.attributes.position.needsUpdate = true;
-      skyMat.uniforms.uFlashX.value = 0.5 + bx / 150;
+      boltGeo.setDrawRange(0, n);
+
+      skyMat.uniforms.uFlashX.value = 0.5 + x / 150;
       flash = 0.9 + Math.random() * 0.3;
       echo = t + 0.12 + Math.random() * 0.12;
       nextStrike = t + 5 + Math.random() * 9;

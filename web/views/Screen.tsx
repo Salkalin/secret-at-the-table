@@ -204,6 +204,7 @@ export default function Screen() {
           roundStartedAt={roundStartedAt}
           roundPausedAt={state.roundPausedAt}
           roundPausedTotalMs={state.roundPausedTotalMs}
+          roundDurationSec={state.roundDurationSec}
           clueTimesSec={clueTimesSec || REVEAL_MARKS}
           advance={advance}
           goBack={goBack}
@@ -331,6 +332,7 @@ function Header({
     discussion: 'Обсуждение',
     voting: 'Голосование',
     results: 'Итоги',
+    'results-final': 'Итоги расследования',
     end: 'Разгадка'
   };
 
@@ -617,7 +619,7 @@ function Story({ chapter, round, advance, goBack, busy, speech }: any) {
 
   if (!hasChapter) {
     return (
-      <div className="max-w-[780px] mt-6">
+      <div className="w-full mt-6 flex flex-col items-center justify-center text-center">
         <div className="text-[11px] font-bold tracking-[0.22em] uppercase text-accent mb-3">
           Финал
         </div>
@@ -625,13 +627,13 @@ function Story({ chapter, round, advance, goBack, busy, speech }: any) {
           Последнее слово
         </h1>
 
-        <p className="my-8 pl-7 border-l-2 border-accent text-[18px] leading-[1.75] text-text max-w-[680px]">
+        <p className="my-8 text-[18px] leading-[1.75] text-text max-w-[680px]">
           Улики закончились. Каждый оставшийся детектив называет имя убийцы.
           <br />
           Кто угадает — выиграл дело.
         </p>
 
-        <div className="flex items-center gap-5 mt-8 flex-wrap">
+        <div className="flex items-center justify-center gap-5 mt-8 flex-wrap">
           <button
             onClick={advance}
             disabled={busy}
@@ -723,6 +725,7 @@ function Discussion({
   roundStartedAt,
   roundPausedAt,
   roundPausedTotalMs,
+  roundDurationSec,
   clueTimesSec,
   advance,
   goBack,
@@ -742,8 +745,9 @@ function Discussion({
     (now - (roundStartedAt || now) - (roundPausedTotalMs || 0) - pausedNow) / 1000
   );
   const isPaused = !!roundPausedAt;
-  const elapsedCapped = Math.min(elapsed, ROUND_SECONDS);
-  const left = Math.max(0, ROUND_SECONDS - elapsed);
+  const duration = roundDurationSec || ROUND_SECONDS;
+  const elapsedCapped = Math.min(elapsed, duration);
+  const left = Math.max(0, duration - elapsed);
   const running = left > 0 && !!roundStartedAt;
 
   const allClues = scenario.clues || [];
@@ -816,7 +820,7 @@ function Discussion({
         <div className="md:col-span-2 relative h-[3px] rounded bg-white/8 my-3">
           <i
             className="absolute left-0 top-0 bottom-0 rounded bg-accent transition-all duration-1000"
-            style={{ width: `${(elapsedCapped / ROUND_SECONDS) * 100}%` }}
+            style={{ width: `${(elapsedCapped / duration) * 100}%` }}
           />
           {round < 4 && (
           <div className="absolute inset-0">
@@ -829,7 +833,7 @@ function Discussion({
                     ? 'bg-accent border-accent'
                     : 'bg-[#1a110d] border-line')
                 }
-                style={{ left: `${(t / ROUND_SECONDS) * 100}%` }}
+                style={{ left: `${(t / duration) * 100}%` }}
               >
                 <em
                   className={
@@ -882,7 +886,7 @@ function Discussion({
                   {c.desc}
                 </p>
                 <small className="mt-3.5 pt-3 border-t border-dashed border-[rgba(42,28,20,.22)] text-[10px] tracking-[.16em] uppercase text-[#8a6a52] font-bold">
-                  Глава {ROMAN[round - 1] || round} · открыта на {fmt(markTime)}
+                  Глава {ROMAN[c.round - 1] || c.round} · открыта на {fmt(markTime)}
                 </small>
               </div>
             );
@@ -943,7 +947,7 @@ function Discussion({
       <div className="flex gap-3 mt-10 pt-6 border-t border-line flex-wrap">
         <button
           onClick={advance}
-          disabled={busy || left > 0}
+          disabled={busy}
           className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
         >
           {round >= 4 ? 'Финальная разгадка' : 'Голосование'}{' '}

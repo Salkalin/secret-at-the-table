@@ -331,8 +331,15 @@ export default function Play() {
     return <StoryScreen scenario={scenario} round={round} />;
   }
 
-    if (phase === 'discussion') {
-    return <DiscussionScreen scenario={scenario} round={round} isCaptain={isCaptain} />;
+  if (phase === 'discussion') {
+    return (
+      <DiscussionScreen
+        scenario={scenario}
+        round={round}
+        isCaptain={isCaptain}
+        eliminatedSuspects={eliminatedSuspects}
+      />
+    );
   }
 
   if (phase === 'voting') {
@@ -787,7 +794,11 @@ function StoryScreen({ scenario, round }: any) {
 // ЭКРАН 5: DISCUSSION (обсуждение без улик)
 // ============================================================
 
-function DiscussionScreen({ scenario, round, isCaptain }: any) {
+function DiscussionScreen({ scenario, round, isCaptain, eliminatedSuspects }: any) {
+  const eliminated: string[] = eliminatedSuspects || [];
+  const aliveSuspects = scenario.suspects.filter(
+    (s: any) => !eliminated.includes(s.id)
+  );
   return (
     <div className="relative min-h-screen flex justify-center bg-[#0d0c0b] text-[#e8e2d6] overflow-hidden">
       <RainCanvas opacity={0.35} lightning />
@@ -805,7 +816,7 @@ function DiscussionScreen({ scenario, round, isCaptain }: any) {
         </p>
 
         <div className="flex flex-col gap-3.5">
-          {scenario.suspects.map((s: any, i: number) => (
+          {aliveSuspects.map((s: any, i: number) => (
             <article
               key={s.id}
               className="relative border border-[#2c2821] bg-[#16140f] rounded p-5 pb-4"
