@@ -1092,12 +1092,12 @@ function EliminatedCard({ suspect }: { suspect: any }) {
 
   return (
     <div className="relative bg-panel border border-line rounded-2xl p-8 md:p-12 mb-10 overflow-hidden">
-      {/* Красная вспышка по краю при появлении штампа */}
+      {/* Оранжевая вспышка по краю */}
       <div
         className="absolute inset-0 pointer-events-none rounded-2xl transition-opacity duration-300"
         style={{
           boxShadow: stamped
-            ? '0 0 60px -10px rgba(192, 86, 58, 0.6) inset'
+            ? '0 0 60px -10px rgba(242, 165, 65, 0.6) inset'
             : 'none',
           opacity: stamped ? 1 : 0
         }}
@@ -1107,8 +1107,7 @@ function EliminatedCard({ suspect }: { suspect: any }) {
         Вердикт следствия
       </div>
 
-      {/* Верхняя строка: иконка + имя + роль СЛЕВА, штамп СПРАВА */}
-      <div className="flex items-center justify-between gap-5 flex-wrap mb-5">
+      <div className="flex items-start justify-between gap-5 flex-wrap mb-6 md:mb-8">
         <div className="flex items-center gap-5 flex-wrap">
           <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-accent text-accent text-3xl">
             <i className={`fa-solid ${suspect.icon}`} />
@@ -1123,8 +1122,8 @@ function EliminatedCard({ suspect }: { suspect: any }) {
           </div>
         </div>
 
-        {/* Штамп «НЕ УБИЙЦА» — справа от имени, крупный */}
-        <div className="origin-center pointer-events-none">
+        {/* Штамп «НЕ УБИЙЦА» — оранжевый */}
+        <div className="origin-center pointer-events-none -mt-6 md:-mt-10">
           <div
             style={{
               transform: `rotate(-8deg) scale(${stamped ? 1 : 2.2})`,
@@ -1135,15 +1134,15 @@ function EliminatedCard({ suspect }: { suspect: any }) {
             }}
           >
             <div
-              className="border-[6px] border-[#c0563a] px-8 py-3 rounded-md"
+              className="border-[6px] border-[#f2a541] px-8 py-3 rounded-md"
               style={{
-                boxShadow: '0 0 40px rgba(192, 86, 58, 0.4)',
-                background: 'rgba(192, 86, 58, 0.05)'
+                boxShadow: '0 0 40px rgba(242, 165, 65, 0.4)',
+                background: 'rgba(242, 165, 65, 0.05)'
               }}
             >
               <span
-                className="font-serif font-bold tracking-[0.15em] text-[#c0563a] text-[clamp(28px,4vw,52px)] whitespace-nowrap"
-                style={{ textShadow: '0 0 20px rgba(192, 86, 58, 0.5)' }}
+                className="font-serif font-bold tracking-[0.15em] text-[#f2a541] text-[clamp(28px,4vw,52px)] whitespace-nowrap"
+                style={{ textShadow: '0 0 20px rgba(242, 165, 65, 0.5)' }}
               >
                 НЕ УБИЙЦА
               </span>
@@ -1152,7 +1151,6 @@ function EliminatedCard({ suspect }: { suspect: any }) {
         </div>
       </div>
 
-      {/* Текст вердикта — во всю ширину, как было */}
       <p className="text-[15px] text-muted leading-relaxed m-0">
         {suspect.verdict ||
           'Большинство команд назвало этого подозреваемого — но это не убийца. Он выбывает из расследования.'}
@@ -1225,8 +1223,8 @@ function FinalVerdictCard({ suspect }: { suspect: any }) {
         Подозрения сняты
       </div>
 
-      {/* Верхняя строка: иконка + имя + роль СЛЕВА, штамп СПРАВА */}
-      <div className="flex items-center justify-between gap-5 flex-wrap mb-5">
+      {/* Верхняя строка: иконка + имя + роль СЛЕВА, штамп СПРАВА (высоко) */}
+      <div className="flex items-start justify-between gap-5 flex-wrap mb-6 md:mb-8">
         <div className="flex items-center gap-5 flex-wrap">
           <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-[#3fb39c] text-[#3fb39c] text-3xl">
             <i className={`fa-solid ${suspect.icon}`} />
@@ -1241,8 +1239,8 @@ function FinalVerdictCard({ suspect }: { suspect: any }) {
           </div>
         </div>
 
-        {/* Штамп «ОПРАВДАН» — справа от имени, крупный */}
-        <div className="origin-center pointer-events-none">
+        {/* Штамп «ОПРАВДАН» — справа от имени, крупный, высоко */}
+        <div className="origin-center pointer-events-none -mt-6 md:-mt-10">
           <div
             style={{
               transform: `rotate(8deg) scale(${stamped ? 1 : 2.2})`,
@@ -1350,6 +1348,123 @@ function Results({
 }
 
 // ============================================================
+// KILLER CARD — карточка убийцы с красным штампом
+// ============================================================
+
+function KillerCard({ suspect }: { suspect: any }) {
+  const [stamped, setStamped] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setStamped(true);
+      try {
+        const Ctx =
+          (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        const now = ctx.currentTime;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.25, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+          data[i] =
+            (Math.random() * 2 - 1) *
+            Math.exp(-i / (ctx.sampleRate * 0.05));
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 600;
+        src.connect(lp).connect(gain).connect(ctx.destination);
+        src.start();
+      } catch {}
+    }, 500);
+
+    return () => clearTimeout(t);
+  }, [suspect.id]);
+
+  return (
+    <div className="relative bg-panel border border-[#e0603a] rounded-2xl p-8 md:p-12 mb-10 overflow-hidden">
+      {/* Красная вспышка по краю */}
+      <div
+        className="absolute inset-0 pointer-events-none rounded-2xl transition-opacity duration-300"
+        style={{
+          boxShadow: stamped
+            ? '0 0 80px -10px rgba(224, 96, 58, 0.8) inset'
+            : 'none',
+          opacity: stamped ? 1 : 0
+        }}
+      />
+
+      <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#e0603a] mb-4">
+        Убийца раскрыт
+      </div>
+
+      <div className="flex items-start justify-between gap-5 flex-wrap mb-6 md:mb-8">
+        <div className="flex items-center gap-5 flex-wrap">
+          <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-[#e0603a] text-[#e0603a] text-3xl">
+            <i className={`fa-solid ${suspect.icon}`} />
+          </span>
+          <div>
+            <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
+              {suspect.name}
+            </div>
+            <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
+              {suspect.role}
+            </div>
+          </div>
+        </div>
+
+        {/* Штамп «УБИЙЦА» — красный */}
+        <div className="origin-center pointer-events-none -mt-6 md:-mt-10">
+          <div
+            style={{
+              transform: `rotate(-8deg) scale(${stamped ? 1 : 2.2})`,
+              opacity: stamped ? 1 : 0,
+              transition:
+                'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
+              animation: stamped ? 'stampShakeKiller 0.4s ease-out' : 'none'
+            }}
+          >
+            <div
+              className="border-[6px] border-[#e0603a] px-8 py-3 rounded-md"
+              style={{
+                boxShadow: '0 0 50px rgba(224, 96, 58, 0.5)',
+                background: 'rgba(224, 96, 58, 0.06)'
+              }}
+            >
+              <span
+                className="font-serif font-bold tracking-[0.15em] text-[#e0603a] text-[clamp(28px,4vw,52px)] whitespace-nowrap"
+                style={{ textShadow: '0 0 24px rgba(224, 96, 58, 0.6)' }}
+              >
+                УБИЙЦА
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p className="text-[15px] text-muted leading-relaxed m-0">
+        {suspect.description || ''}
+      </p>
+
+      <style>{`
+        @keyframes stampShakeKiller {
+          0%   { transform: rotate(-8deg) scale(1); }
+          20%  { transform: rotate(-11deg) scale(1); }
+          40%  { transform: rotate(-5deg) scale(1); }
+          60%  { transform: rotate(-9.5deg) scale(1); }
+          100% { transform: rotate(-8deg) scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ============================================================
 // END
 // ============================================================
 
@@ -1362,20 +1477,8 @@ function EndView({ state, onReset, speech, onShowResults, code, sock, trace }: a
       <h1 className="font-serif text-[clamp(44px,5.5vw,72px)] leading-none text-text font-semibold mb-6">
         Разгадка
       </h1>
-
-      {killer && (
-        <div className="flex items-center gap-4 mb-6">
-          <span className="w-16 h-16 rounded-full grid place-items-center bg-panel2 border border-accent text-accent text-2xl">
-            <i className={`fa-solid ${killer.icon}`} />
-          </span>
-          <div>
-            <div className="font-serif text-4xl text-text">{killer.name}</div>
-            <div className="text-[10.5px] tracking-wider uppercase text-accent">
-              {killer.role} · убийца
-            </div>
-          </div>
-        </div>
-      )}
+      
+      {killer && <KillerCard suspect={killer} />}
 
       <div className="bg-panel border-l-2 border-accent rounded-2xl p-6 mb-8 max-w-[820px] text-[17px] leading-relaxed text-text">
         {solution}
