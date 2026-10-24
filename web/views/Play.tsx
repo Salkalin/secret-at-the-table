@@ -21,7 +21,7 @@ const fmt = (s: number) => {
 };
 
 // ============================================================
-// RAIN CANVAS (используется на нескольких экранах)
+// RAIN CANVAS
 // ============================================================
 
 function RainCanvas({ opacity = 0.5, lightning = false }: { opacity?: number; lightning?: boolean }) {
@@ -35,8 +35,7 @@ function RainCanvas({ opacity = 0.5, lightning = false }: { opacity?: number; li
     const cx = x;
     const root = document.documentElement;
 
-    let w = 0,
-      h = 0;
+    let w = 0, h = 0;
     type Drop = { x: number; y: number; l: number; s: number; a: number };
     let drops: Drop[] = [];
     type Bolt = { x1: number; y1: number; x2: number; y2: number };
@@ -120,7 +119,6 @@ function RainCanvas({ opacity = 0.5, lightning = false }: { opacity?: number; li
       cx.clearRect(0, 0, w, h);
       cx.lineWidth = 1;
 
-      // Дождь
       cx.strokeStyle = `rgba(190, 200, 215, ${0.18 + flash * 0.4})`;
       for (const d of drops) {
         cx.beginPath();
@@ -134,7 +132,6 @@ function RainCanvas({ opacity = 0.5, lightning = false }: { opacity?: number; li
         }
       }
 
-      // Молния
       if (lightning && boltOpacity > 0.01 && boltPoints.length > 0) {
         const offsets = [0, 0.8, -0.8];
         cx.lineCap = 'round';
@@ -190,27 +187,38 @@ export default function Play() {
   const speech = useSpeech();
   const didReconnect = useRef(false);
   const lastStateRef = useRef<any>(null);
+  const joinedRef = useRef(false);
 
-  // Хелпер для отправки клиентских трейсов
+  // Хелпер для трейсов (безопасен, если code ещё нет)
   const trace = (event: string, data?: any) => {
     if (!code) return;
-    sock.current.emit('client:trace', { code, event, data });
+    try {
+      sock.current.emit('client:trace', { code, event, data });
+    } catch {
+      // ignore
+    }
   };
 
   useEffect(() => {
     const s = sock.current;
     const onState = (st: any) => {
       setState(st);
-      // Логируем смену фазы глазами игрока
       if (lastStateRef.current?.phase !== st?.phase) {
-        trace('phase_changed', { from: lastStateRef.current?.phase, to: st?.phase, round: st?.round });
+        trace('phase_changed', {
+          from: lastStateRef.current?.phase,
+          to: st?.phase,
+          round: st?.round
+        });
       }
       lastStateRef.current = st;
     };
     s.on('state', onState);
 
     const onKill = () => {
-      setJoined(false); setTeamId(null); setState(null); setIsCaptain(false);
+      setJoined(false);
+      setTeamId(null);
+      setState(null);
+      setIsCaptain(false);
       if (code) localStorage.removeItem(`team_${code}`);
     };
     s.on('session:kill', onKill);
@@ -226,6 +234,7 @@ export default function Play() {
     if (saved) setNickname(saved);
   }, []);
 
+  // Авто-реконнект (только один раз)
   useEffect(() => {
     if (joined || !code || didReconnect.current) return;
     didReconnect.current = true;
@@ -240,10 +249,17 @@ export default function Play() {
     const t = setTimeout(() => {
       sock.current.emit(
         'player:join',
-        { code, nickname: savedName, wantCaptain: false, reconnectTeamId: savedTeam },
+        {
+          code,
+          nickname: savedName,
+          wantCaptain: false,
+          reconnectTeamId: savedTeam
+        },
         (res: any) => {
           if (res?.error) {
             trace('auto_reconnect_failed', { error: res.error });
+            // Если команда не найдена, чистим localStorage
+            if (res.error === 'not_found') localStorage.removeItem(`team_${code}`);
             return;
           }
           setJoined(true);
@@ -265,9 +281,13 @@ export default function Play() {
       setErr('Имя должно содержать минимум 2 символа');
       return;
     }
+    if (joinedRef.current) return; // защита от двойного клика
+    joinedRef.current = true;
+
     localStorage.setItem('detective_name', v);
     trace('join_attempt', { wantCaptain });
 
+    // Если уже есть сохранённая команда для этой сессии — пытаемся реконнектиться
     const stored = localStorage.getItem(`team_${code}`);
     const reconnectTeamId = stored || undefined;
 
@@ -275,6 +295,7 @@ export default function Play() {
       'player:join',
       { code, nickname: v, wantCaptain, reconnectTeamId },
       (res: any) => {
+        joinedRef.current = false;
         if (res?.error) {
           setErr(res.error === 'no_teams' ? 'Сначала создайте стол капитаном' : res.error);
           trace('join_failed', { error: res.error });
@@ -300,6 +321,21 @@ export default function Play() {
         trace('vote_success', { suspectId });
       }
     });
+  }
+
+  // --- Экран входа ---
+  if (!joined) {
+    return (
+      <JoinScreen
+        code={code}
+        nickname={nickname}
+        setNickname={setNickname}
+        wantCaptain={wantCaptain}
+        setWantCaptain={setWantCaptain}
+        onJoin={join}
+        err={err}
+      />
+    );
   }
 
   if (!state) {
@@ -334,19 +370,15 @@ export default function Play() {
     ? scenario.suspects.find((s: any) => s.id === elimId)
     : null;
 
-  // --- Роутинг по фазам ---
   if (phase === 'lobby') {
     return <LobbyScreen scenario={scenario} round={round} isCaptain={isCaptain} />;
   }
-
   if (phase === 'intro') {
     return <IntroScreen scenario={scenario} isCaptain={isCaptain} />;
   }
-
   if (phase === 'story') {
     return <StoryScreen scenario={scenario} round={round} />;
   }
-
   if (phase === 'discussion') {
     return (
       <DiscussionScreen
@@ -357,7 +389,6 @@ export default function Play() {
       />
     );
   }
-
   if (phase === 'voting') {
     return (
       <VotingScreen
@@ -371,14 +402,18 @@ export default function Play() {
       />
     );
   }
-
   if (phase === 'results') {
-    // На итогах раунда клиент показывает экран повествования — пусть смотрят большой экран
-    return <StoryScreen scenario={scenario} round={round} />;
+    return (
+      <ResultsScreen
+        scenario={scenario}
+        round={round}
+        lastResult={lastResult}
+        myTeam={myTeam}
+        elimSuspect={elimSuspect}
+      />
+    );
   }
-
   if (phase === 'end' || phase === 'results-final') {
-    // Чистим teamId — при следующей игре это будет новая сессия
     if (code) localStorage.removeItem(`team_${code}`);
     return <EndScreen scenario={scenario} />;
   }
@@ -559,13 +594,12 @@ function JoinScreen({
 }
 
 // ============================================================
-// ЭКРАН 2: ЛОББИ («Ждём старт»)
+// ЭКРАН 2: ЛОББИ
 // ============================================================
 
 function LobbyScreen({ scenario, round, isCaptain }: any) {
   return (
     <div className="relative min-h-screen flex justify-center bg-[#100e0c] text-[#d8d2c8] overflow-hidden">
-      {/* SVG-сцена: комната, лампа, стол */}
       <svg
         className="absolute inset-0 w-full h-full"
         viewBox="0 0 390 844"
@@ -613,7 +647,6 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
         <rect y="470" width="390" height="130" fill="#1b1612" />
         <rect y="468" width="390" height="5" fill="#2a2119" />
 
-        {/* Окно */}
         <rect x="30" y="132" width="126" height="186" fill="#0d0b09" />
         <rect x="38" y="140" width="110" height="170" fill="url(#moonL)" />
         <g fill="#0f0d0b" opacity=".85">
@@ -624,7 +657,6 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
         <rect x="91" y="140" width="4" height="170" fill="#0d0b09" />
         <rect x="26" y="316" width="134" height="7" fill="#241c15" />
 
-        {/* Доска улик */}
         <rect x="222" y="150" width="150" height="112" fill="#2a1e14" stroke="#150f0a" strokeWidth="5" />
         <g opacity=".75">
           <rect x="236" y="164" width="30" height="38" fill="#b8ad98" transform="rotate(-4 251 183)" />
@@ -641,7 +673,6 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
           </g>
         </g>
 
-        {/* Шкаф */}
         <rect x="318" y="420" width="72" height="190" fill="#1f1b17" />
         <g stroke="#0d0b09" strokeWidth="2" fill="none">
           <rect x="324" y="428" width="60" height="54" />
@@ -649,7 +680,6 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
           <rect x="324" y="548" width="60" height="54" />
         </g>
 
-        {/* Пол */}
         <rect y="600" width="390" height="244" fill="url(#floorL)" />
         <g stroke="#000" strokeOpacity=".35" strokeWidth="1">
           <line x1="195" y1="600" x2="-120" y2="844" />
@@ -660,27 +690,23 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
           <line x1="195" y1="600" x2="510" y2="844" />
         </g>
 
-        {/* Лампа */}
         <line x1="195" y1="0" x2="195" y2="318" stroke="#0a0908" strokeWidth="2" />
         <g>
           <polygon points="172,340 218,340 360,660 30,660" fill="url(#coneL)" />
           <ellipse cx="195" cy="660" rx="190" ry="70" fill="url(#poolL)" />
         </g>
 
-        {/* Стулья */}
         <g fill="#1c140e">
           <rect x="92" y="560" width="54" height="80" rx="6" />
           <rect x="244" y="560" width="54" height="80" rx="6" />
         </g>
 
-        {/* Стол */}
         <rect x="185" y="660" width="20" height="110" fill="#1a110a" />
         <ellipse cx="195" cy="652" rx="158" ry="44" fill="#140d08" />
         <ellipse cx="195" cy="645" rx="158" ry="42" fill="url(#tableL)" />
         <rect x="150" y="628" width="44" height="30" fill="#c9bea6" opacity=".75" transform="rotate(-12 172 643)" />
         <rect x="200" y="634" width="52" height="28" fill="#6b4a2b" transform="rotate(8 226 648)" />
 
-        {/* Абажур */}
         <polygon points="172,318 218,318 234,342 156,342" fill="#2a2520" />
         <ellipse cx="195" cy="342" rx="39" ry="5" fill="#f3cc85" />
 
@@ -730,7 +756,7 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
 }
 
 // ============================================================
-// ЭКРАН 3: INTRO (Дело открыто)
+// ЭКРАН 3: INTRO
 // ============================================================
 
 function IntroScreen({ scenario, isCaptain }: any) {
@@ -774,7 +800,7 @@ function IntroScreen({ scenario, isCaptain }: any) {
 }
 
 // ============================================================
-// ЭКРАН 4: STORY (Идёт повествование)
+// ЭКРАН 4: STORY
 // ============================================================
 
 function StoryScreen({ scenario, round }: any) {
@@ -807,7 +833,7 @@ function StoryScreen({ scenario, round }: any) {
 }
 
 // ============================================================
-// ЭКРАН 5: DISCUSSION (обсуждение без улик)
+// ЭКРАН 5: DISCUSSION
 // ============================================================
 
 function DiscussionScreen({ scenario, round, isCaptain, eliminatedSuspects }: any) {
@@ -884,7 +910,7 @@ function DiscussionScreen({ scenario, round, isCaptain, eliminatedSuspects }: an
 }
 
 // ============================================================
-// ЭКРАН 6: VOTING (выбор преступника)
+// ЭКРАН 6: VOTING
 // ============================================================
 
 function VotingScreen({
@@ -920,7 +946,6 @@ function VotingScreen({
     ? `Ваш выбор: ${s.name}`
     : 'Выберите подозреваемого';
 
-  // Если проголосовал — показываем экран «Голос принят»
   if (voted) {
     return (
       <VoteAcceptedScreen
@@ -1070,15 +1095,15 @@ function VotingScreen({
 
       <div className="fixed left-0 right-0 bottom-0 z-20 px-5 pt-4 pb-[calc(18px_+_env(safe-area-inset-bottom))] bg-gradient-to-t from-[#0d0c0b] via-[#0d0c0b] to-transparent">
         <div className="max-w-[440px] mx-auto">
-        <div className="font-['IBM_Plex_Mono'] text-[11px] tracking-[.08em] text-center text-[#6f675a] mb-2.5 min-h-[17px] flex items-center justify-center gap-3">
-          <span>{hint}</span>
-          {!voted && (
-            <span className="text-[#b3261e]">
-              <i className="fa-regular fa-clock mr-1" />
-              <VotingCountdown />
-            </span>
-          )}
-        </div>
+          <div className="font-['IBM_Plex_Mono'] text-[11px] tracking-[.08em] text-center text-[#6f675a] mb-2.5 min-h-[17px] flex items-center justify-center gap-3">
+            <span>{hint}</span>
+            {!voted && (
+              <span className="text-[#b3261e]">
+                <i className="fa-regular fa-clock mr-1" />
+                <VotingCountdown />
+              </span>
+            )}
+          </div>
           <button
             onClick={submit}
             disabled={selected === null || !isCaptain}
@@ -1103,7 +1128,7 @@ function VotingScreen({
 }
 
 // ============================================================
-// ЭКРАН 7: ГОЛОС ПРИНЯТ (внутри voting)
+// ЭКРАН 7: ГОЛОС ПРИНЯТ
 // ============================================================
 
 function VoteAcceptedScreen({
@@ -1209,7 +1234,7 @@ function VoteAcceptedScreen({
 }
 
 // ============================================================
-// ЭКРАН 8: RESULTS (итоги раунда)
+// ЭКРАН 8: RESULTS
 // ============================================================
 
 function ResultsScreen({
@@ -1268,7 +1293,7 @@ function ResultsScreen({
 }
 
 // ============================================================
-// ЭКРАН 9: END (Спасибо за игру)
+// ЭКРАН 9: END
 // ============================================================
 
 function EndScreen({ scenario }: any) {
@@ -1318,6 +1343,7 @@ function EndScreen({ scenario }: any) {
     </div>
   );
 }
+
 function VotingCountdown() {
   const [left, setLeft] = useState(30);
   useEffect(() => {
