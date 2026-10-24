@@ -40,7 +40,7 @@ export default function Landing() {
             onReel={() => setLoginOpen(true)}
           />
 
-          <Cases />
+          <Cases onLogin={() => setLoginOpen(true)} />
         </div>
       </div>
 

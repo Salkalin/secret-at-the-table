@@ -58,12 +58,27 @@ export default function ViktorScene() {
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          
+          {/* Машина (как в макете) */}
+          <g id="vk-car">
+            <ellipse cx="132" cy="96" rx="145" ry="8" fill="#000" opacity=".6" />
+            <path d="M4 78 L4 56 Q6 44 24 42 L64 38 L98 14 Q104 9 114 9 L176 9 Q187 9 194 16 L226 40 L250 44 Q262 47 262 60 L262 78 Z" fill="currentColor" />
+            <path d="M106 18 L138 18 L138 38 L80 38 Z" fill="#0b0e12" />
+            <path d="M146 18 L176 18 Q182 18 186 24 L198 38 L146 38 Z" fill="#0b0e12" />
+            <path d="M24 44 L64 40 L98 16 Q104 11 114 11 L176 11 Q186 11 193 18 L226 42" stroke="#ffffff" strokeOpacity=".14" strokeWidth="2" fill="none" />
+            <path d="M112 12 L160 12" stroke="#ffcf86" strokeOpacity=".3" strokeWidth="2" />
+            <path d="M10 60 H256" stroke="#000" strokeOpacity=".35" strokeWidth="2" />
+            <path d="M140 42 V74" stroke="#000" strokeOpacity=".3" strokeWidth="1.5" />
+            <rect x="4" y="50" width="6" height="9" rx="1" fill="#7a1d14" />
+            <rect x="254" y="52" width="8" height="6" rx="1" fill="#a39a88" opacity=".6" />
+            <circle cx="62" cy="80" r="19" fill="#070707" />
+            <circle cx="62" cy="80" r="8" fill="#2c2b2a" />
+            <circle cx="206" cy="80" r="19" fill="#070707" />
+            <circle cx="206" cy="80" r="8" fill="#2c2b2a" />
+          </g>
         </defs>
 
-        {/* Небо */}
         <rect width="1600" height="900" fill="url(#vkSky)" />
-
-        {/* Тучи */}
         <g filter="url(#vkBlur20)" fill="#1d2129" opacity=".75">
           <ellipse cx="220" cy="120" rx="320" ry="70" />
           <ellipse cx="700" cy="80" rx="380" ry="80" />
@@ -72,15 +87,8 @@ export default function ViktorScene() {
           <ellipse cx="380" cy="270" rx="260" ry="45" fill="#171a21" />
         </g>
 
-        {/* Городской фон */}
-        <path
-          d="M0 700 V610 H70 V570 H140 V625 H200 V545 H270 V700 Z"
-          fill="#0b0c10"
-        />
-        <path
-          d="M960 700 V585 H1040 V520 H1120 V600 H1200 V480 H1260 V466 H1300 V480 H1320 V560 H1420 V605 H1500 V540 H1600 V700 Z"
-          fill="#0b0c10"
-        />
+        <path d="M0 700 V610 H70 V570 H140 V625 H200 V545 H270 V700 Z" fill="#0b0c10" />
+        <path d="M960 700 V585 H1040 V520 H1120 V600 H1200 V480 H1260 V466 H1300 V480 H1320 V560 H1420 V605 H1500 V540 H1600 V700 Z" fill="#0b0c10" />
         <g fill="#d9a060" opacity=".35">
           <rect x="90" y="585" width="6" height="8" />
           <rect x="220" y="560" width="6" height="8" />
@@ -93,55 +101,30 @@ export default function ViktorScene() {
           <rect x="1440" y="620" width="6" height="8" />
         </g>
 
-        {/* Асфальт */}
         <rect x="0" y="700" width="1600" height="32" fill="#1a1512" />
         <rect x="0" y="730" width="1600" height="170" fill="url(#vkGround)" />
         <path d="M0 731 H1600" stroke="#2a221d" strokeWidth="2" />
 
-        {/* Тёплое свечение вокруг ресторана */}
         <ellipse cx="620" cy="620" rx="440" ry="150" fill="#f0a65a" opacity=".13" filter="url(#vkBlur20)" />
 
-        {/* Здание ресторана */}
         <rect x="260" y="430" width="720" height="280" fill="url(#vkBrick)" />
         <rect x="248" y="416" width="744" height="18" fill="#110d0b" />
         <rect x="260" y="434" width="720" height="5" fill="#000" opacity=".4" />
         <rect x="260" y="690" width="720" height="20" fill="#120e0c" />
 
-        {/* Вывеска */}
         <path d="M470 412 V416 M770 412 V416" stroke="#0d0a09" strokeWidth="8" />
         <rect x="400" y="330" width="440" height="84" rx="4" fill="#0e0a09" stroke="#2a1f1a" />
-        <text
-          x="620"
-          y="380"
-          textAnchor="middle"
-          fontFamily="Cormorant Garamond, serif"
-          fontWeight="700"
-          fontSize="38"
-          letterSpacing="2"
-          fill="#ff7a5c"
-          filter="url(#vkNeon)"
-        >
+        <text x="620" y="380" textAnchor="middle" fontFamily="Cormorant Garamond, serif" fontWeight="700" fontSize="38" letterSpacing="2" fill="#ff7a5c" filter="url(#vkNeon)">
           ПОСЛЕДНИЙ УЖИН
         </text>
-        <text
-          x="620"
-          y="402"
-          textAnchor="middle"
-          fontFamily="Inter, sans-serif"
-          fontWeight="600"
-          fontSize="10"
-          letterSpacing="6"
-          fill="#a39a92"
-        >
+        <text x="620" y="402" textAnchor="middle" fontFamily="Inter, sans-serif" fontWeight="600" fontSize="10" letterSpacing="6" fill="#a39a92">
           РЕСТОРАН · С 1962
         </text>
         <ellipse cx="620" cy="372" rx="240" ry="60" fill="#ff7a5c" opacity=".12" filter="url(#vkBlur20)" />
 
-        {/* Маркиза */}
         <polygon points="280,490 960,490 948,462 292,462" fill="url(#vkStripe)" />
         <rect x="280" y="489" width="680" height="5" fill="#000" opacity=".5" />
 
-        {/* Окна */}
         <g>
           <rect x="300" y="505" width="165" height="155" fill="url(#vkWarm)" />
           <rect x="485" y="505" width="160" height="155" fill="url(#vkWarm)" />
@@ -149,7 +132,6 @@ export default function ViktorScene() {
           <rect x="668" y="520" width="72" height="170" fill="url(#vkWarm)" opacity=".92" />
         </g>
 
-        {/* Силуэты внутри */}
         <g fill="#3a2212" opacity=".78">
           <rect x="318" y="612" width="70" height="5" />
           <rect x="350" y="617" width="5" height="43" />
@@ -159,7 +141,6 @@ export default function ViktorScene() {
           <path d="M367 612 Q367 596 378 596 Q389 596 389 612 Z" />
           <rect x="408" y="620" width="44" height="5" />
           <rect x="428" y="625" width="4" height="35" />
-
           <circle cx="520" cy="562" r="9" />
           <rect x="509" y="572" width="22" height="56" rx="8" />
           <rect x="511" y="624" width="7" height="36" />
@@ -168,7 +149,6 @@ export default function ViktorScene() {
           <rect x="592" y="620" width="5" height="40" />
           <circle cx="612" cy="586" r="8" />
           <path d="M601 615 Q601 597 612 597 Q623 597 623 615 Z" />
-
           <rect x="765" y="600" width="175" height="60" />
           <path d="M775 545 H930 M775 570 H930" stroke="#3a2212" strokeWidth="3" />
           <rect x="785" y="530" width="5" height="15" />
@@ -179,12 +159,10 @@ export default function ViktorScene() {
           <rect x="915" y="558" width="5" height="12" />
           <circle cx="852" cy="578" r="9" />
           <path d="M838 600 Q838 588 852 588 Q866 588 866 600 Z" />
-
           <circle cx="700" cy="590" r="8" />
           <path d="M688 640 Q688 600 700 600 Q712 600 712 640 Z" />
         </g>
 
-        {/* Подвесные лампы */}
         <g>
           <g stroke="#3a2212" strokeWidth="1.5">
             <path d="M345 505 V528 M420 505 V528 M530 505 V528 M605 505 V528 M810 505 V522 M890 505 V522" />
@@ -207,20 +185,15 @@ export default function ViktorScene() {
           </g>
         </g>
 
-        {/* Рамы окон */}
         <g stroke="#0e0a08" fill="none">
           <rect x="300" y="505" width="165" height="155" strokeWidth="7" />
           <rect x="485" y="505" width="160" height="155" strokeWidth="7" />
           <rect x="765" y="505" width="175" height="155" strokeWidth="7" />
           <rect x="668" y="520" width="72" height="170" strokeWidth="6" />
-          <path
-            d="M300 545 H465 M382 545 V660 M485 545 H645 M565 545 V660 M765 545 H940 M852 545 V660"
-            strokeWidth="4"
-          />
+          <path d="M300 545 H465 M382 545 V660 M485 545 H645 M565 545 V660 M765 545 H940 M852 545 V660" strokeWidth="4" />
           <path d="M704 520 V690" strokeWidth="3" />
         </g>
 
-        {/* Свет от окон на тротуаре */}
         <g fill="#f0a65a" opacity=".22" filter="url(#vkBlur6)">
           <polygon points="300,710 465,710 500,732 270,732" />
           <polygon points="485,710 645,710 680,732 455,732" />
@@ -228,7 +201,6 @@ export default function ViktorScene() {
           <polygon points="668,710 740,710 790,732 618,732" />
         </g>
 
-        {/* Отражения на мокром асфальте */}
         <g opacity=".55" filter="url(#vkBlur6)">
           <rect x="300" y="736" width="165" height="120" fill="url(#vkRefl)" />
           <rect x="485" y="736" width="160" height="120" fill="url(#vkRefl)" />
@@ -236,7 +208,6 @@ export default function ViktorScene() {
           <rect x="765" y="736" width="175" height="120" fill="url(#vkRefl)" />
         </g>
 
-        {/* Фонарь */}
         <polygon points="1052,466 1078,466 1190,810 940,810" fill="url(#vkCone)" />
         <ellipse cx="1065" cy="805" rx="140" ry="18" fill="#ffe2b0" opacity=".12" filter="url(#vkBlur6)" />
         <rect x="996" y="470" width="7" height="262" fill="#0d0c0c" />
@@ -245,68 +216,29 @@ export default function ViktorScene() {
         <circle cx="1065" cy="468" r="40" fill="#ffe2b0" opacity=".35" filter="url(#vkBlur20)" />
         <ellipse cx="1065" cy="466" rx="12" ry="3" fill="#fff3d6" />
 
-        {/* Табличка парковки */}
         <rect x="1556" y="600" width="6" height="132" fill="#0d0c0c" />
-        <rect
-          x="1532"
-          y="560"
-          width="54"
-          height="54"
-          rx="6"
-          fill="#22324a"
-          stroke="#d8d2c8"
-          strokeOpacity=".5"
-          strokeWidth="2"
-        />
-        <text
-          x="1559"
-          y="600"
-          textAnchor="middle"
-          fontFamily="Inter, sans-serif"
-          fontWeight="600"
-          fontSize="34"
-          fill="#ece4dc"
-        >
+        <rect x="1532" y="560" width="54" height="54" rx="6" fill="#22324a" stroke="#d8d2c8" strokeOpacity=".5" strokeWidth="2" />
+        <text x="1559" y="600" textAnchor="middle" fontFamily="Inter, sans-serif" fontWeight="600" fontSize="34" fill="#ece4dc">
           P
         </text>
 
-        {/* Разметка */}
         <g stroke="#d8d2c8" strokeOpacity=".22" strokeWidth="3">
           <path d="M1045 740 L1035 800 M1335 740 L1328 800 M1600 740 L1596 800" />
           <path d="M995 815 L980 898 M1320 815 L1310 898" />
         </g>
 
-        {/* Лужи */}
         <g opacity=".1">
           <ellipse cx="540" cy="800" rx="130" ry="10" fill="#f0a65a" />
           <ellipse cx="1180" cy="885" rx="110" ry="7" fill="#ffe2b0" />
           <ellipse cx="160" cy="840" rx="90" ry="7" fill="#c9d2e0" />
         </g>
 
-        {/* Машины */}
-        <g fill="#3b2723">
-          <ellipse cx="1194" cy="796" rx="145" ry="8" fill="#000" opacity=".6" />
-          <path d="M1066 778 L1066 756 Q1068 744 1086 742 L1126 738 L1160 714 Q1166 709 1176 709 L1238 709 Q1249 709 1256 716 L1288 740 L1312 744 Q1324 747 1324 760 L1324 778 Z" />
-          <rect x="1120" y="718" width="44" height="22" fill="#0b0e12" />
-          <rect x="1210" y="718" width="42" height="22" fill="#0b0e12" />
-          <circle cx="1124" cy="780" r="19" fill="#070707" />
-          <circle cx="1124" cy="780" r="8" fill="#2c2b2a" />
-          <circle cx="1268" cy="780" r="19" fill="#070707" />
-          <circle cx="1268" cy="780" r="8" fill="#2c2b2a" />
-        </g>
+        {/* Используем одинаковую машину 4 раза, как в макете */}
+        <use href="#vk-car" color="#3b2723" transform="translate(1062 700)" />
+        <use href="#vk-car" color="#1f2a33" transform="translate(1345 704)" />
+        <use href="#vk-car" color="#2b2b30" transform="translate(1005 782) scale(1.18)" />
+        <use href="#vk-car" color="#3a3530" transform="translate(1330 790) scale(1.15)" />
 
-        <g fill="#1f2a33">
-          <ellipse cx="1349" cy="800" rx="145" ry="8" fill="#000" opacity=".6" />
-          <path d="M1221 782 L1221 760 Q1223 748 1241 746 L1281 742 L1315 718 Q1321 713 1331 713 L1393 713 Q1404 713 1411 720 L1443 744 L1467 748 Q1479 751 1479 764 L1479 782 Z" />
-          <rect x="1275" y="722" width="44" height="22" fill="#0b0e12" />
-          <rect x="1365" y="722" width="42" height="22" fill="#0b0e12" />
-          <circle cx="1279" cy="784" r="19" fill="#070707" />
-          <circle cx="1279" cy="784" r="8" fill="#2c2b2a" />
-          <circle cx="1423" cy="784" r="19" fill="#070707" />
-          <circle cx="1423" cy="784" r="8" fill="#2c2b2a" />
-        </g>
-
-        {/* Капли на стекле (мелкие штрихи) */}
         <g stroke="#c9d2e0" strokeOpacity=".15" strokeWidth="1">
           <line x1="400" y1="300" x2="398" y2="340" />
           <line x1="550" y1="250" x2="548" y2="290" />

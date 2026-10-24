@@ -195,6 +195,11 @@ export function attachSocket(io: Server) {
 
       await persistState(code, ns);
       broadcastState(io, code, ns);
+
+      // Обрубаем всех клиентов — они должны отсканировать QR заново
+      io.to(`play:${code}`).emit('session:kill');
+      io.in(`play:${code}`).disconnectSockets(true);
+
       cb?.({ state: E.publicState(ns, { revealSolution: false }) });
     });
     socket.on('host:toggle-pause', async ({ code }: { code: string }, cb?: any) => {
@@ -225,6 +230,18 @@ export function attachSocket(io: Server) {
       const pub = E.publicState(s, { revealSolution: false });
       io.to(`screen:${code}`).emit('state', pub);
       io.to(`play:${code}`).emit('state', pub);
+      cb?.({ ok: true });
+    });
+
+      socket.on('host:close', async ({ code }: { code: string }, cb?: any) => {
+      console.log('[host:close]', code);
+      const s = sessions.get(code);
+      if (!s) return cb?.({ error: 'not_found' });
+      stopClueTimer(code);
+      sessions.delete(code);
+      // Обрубаем клиентов
+      io.to(`play:${code}`).emit('session:kill');
+      io.in(`play:${code}`).disconnectSockets(true);
       cb?.({ ok: true });
     });
 

@@ -170,6 +170,7 @@ export default function Screen() {
           advance={advance}
           goBack={goBack}
           busy={busy}
+          sock={sock}
         />
       )}
 
@@ -293,11 +294,13 @@ export default function Screen() {
           onReset={reset}
           speech={speech}
           onShowResults={advance}
+          code={code}
+          sock={sock}
         />
       )}
 
       {phase === 'results-final' && (
-        <ResultsFinal teams={teams} onReset={reset} />
+        <ResultsFinal teams={teams} onReset={reset} code={code} sock={sock} />
       )}
 
 
@@ -386,7 +389,7 @@ function Header({
 // LOBBY
 // ============================================================
 
-function Lobby({ code, qr, teams, advance, goBack, busy }: any) {
+function Lobby({ code, qr, teams, advance, goBack, busy, sock }: any) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -438,13 +441,20 @@ function Lobby({ code, qr, teams, advance, goBack, busy }: any) {
           >
             Начать игру <i className="fa-solid fa-play" />
           </button>
+
           <button
-            onClick={goBack}
-            disabled={busy}
-            className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] disabled:opacity-40"
+            onClick={async () => {
+              try {
+                await fetch('/api/logout', { method: 'POST' });
+              } catch {}
+              sock.current.emit('host:close', { code });
+              window.location.href = '/host';
+            }}
+            className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px]"
           >
-            Назад
+            ← К выбору дела
           </button>
+
         </div>
       </div>
 
@@ -1133,7 +1143,7 @@ function Results({
 // END (разгадка)
 // ============================================================
 
-function EndView({ state, onReset, speech, onShowResults }: any) {
+function EndView({ state, onReset, speech, onShowResults, code, sock }: any) {
   const solution = state.solution;
   const teams = state.teams || [];
   const sorted = [...teams].sort((a: any, b: any) => b.score - a.score);
@@ -1199,9 +1209,18 @@ function EndView({ state, onReset, speech, onShowResults }: any) {
         <button onClick={onReset} className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90">
           Сыграть это дело снова
         </button>
-        <a href="/host" className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] inline-flex items-center">
+        <button
+          onClick={async () => {
+            try {
+              await fetch('/api/logout', { method: 'POST' });
+            } catch {}
+            sock.current.emit('host:close', { code });
+            window.location.href = '/host';
+          }}
+          className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] inline-flex items-center"
+        >
           Новое дело
-        </a>
+        </button>
       </div>
     </div>
   );
@@ -1319,7 +1338,7 @@ function VotingCountdown() {
   return <span>0:{String(left).padStart(2, '0')}</span>;
 }
 
-function ResultsFinal({ teams, onReset }: any) {
+function ResultsFinal({ teams, onReset, code, sock }: any) {
   const sorted = [...(teams || [])].sort((a: any, b: any) => b.score - a.score);
   const fmtScore = (n: number) => (n > 0 ? `+${n}` : `${n}`);
   return (
@@ -1380,9 +1399,18 @@ function ResultsFinal({ teams, onReset }: any) {
         <button onClick={onReset} className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90">
           Сыграть это дело снова
         </button>
-        <a href="/host" className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] inline-flex items-center">
+        <button
+          onClick={async () => {
+            try {
+              await fetch('/api/logout', { method: 'POST' });
+            } catch {}
+            sock.current.emit('host:close', { code });
+            window.location.href = '/host';
+          }}
+          className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] inline-flex items-center"
+        >
           Новое дело
-        </a>
+        </button>
       </div>
     </div>
   );

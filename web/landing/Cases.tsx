@@ -26,7 +26,7 @@ const META: Record<string, { icon: string; color: string; tag: string; no: strin
   theatre: { icon: 'fa-masks-theater', color: '#d2663f', tag: 'Премьера', no: '003' }
 };
 
-export default function Cases() {
+export default function Cases({ onLogin }: { onLogin: () => void }) {
   const [scenarios, setScenarios] = useState<ScenarioCard[]>([]);
   const [selected, setSelected] = useState<string>('random');
 
@@ -54,7 +54,7 @@ export default function Cases() {
   const allCards = [RANDOM_CARD, ...scenarios];
 
   function handleClick() {
-    location.href = '/login';
+    // См. props ниже
   }
 
   return (
@@ -144,7 +144,7 @@ export default function Cases() {
 
       <div className="mt-12 flex justify-center">
         <button
-          onClick={handleClick}
+          onClick={onLogin}
           className="px-8 py-4 rounded-xl bg-lnd-amber text-[#1a0f0a] font-bold text-[15px] inline-flex items-center gap-3 hover:-translate-y-0.5 hover:bg-[#ffb85a] transition shadow-[0_10px_40px_-12px_rgba(242,165,65,0.7)]"
         >
           <i className="fa-solid fa-magnifying-glass" />

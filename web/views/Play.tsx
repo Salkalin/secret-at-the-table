@@ -193,10 +193,21 @@ export default function Play() {
     const s = sock.current;
     const onState = (st: any) => setState(st);
     s.on('state', onState);
+
+    const onKill = () => {
+      setJoined(false);
+      setTeamId(null);
+      setState(null);
+      setIsCaptain(false);
+      if (code) localStorage.removeItem(`team_${code}`);
+    };
+    s.on('session:kill', onKill);
+
     return () => {
       s.off('state', onState);
+      s.off('session:kill', onKill);
     };
-  }, []);
+  }, [code]);
 
   useEffect(() => {
     const saved = localStorage.getItem('detective_name');
@@ -361,7 +372,7 @@ export default function Play() {
     return <StoryScreen scenario={scenario} round={round} />;
   }
 
-  if (phase === 'end') {
+  if (phase === 'end' || phase === 'results-final') {
     // Чистим teamId — при следующей игре это будет новая сессия
     if (code) localStorage.removeItem(`team_${code}`);
     return <EndScreen scenario={scenario} />;
