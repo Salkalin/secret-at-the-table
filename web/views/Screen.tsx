@@ -1052,7 +1052,7 @@ function Voting({ scenario, aliveSuspects, advance, goBack, busy }: any) {
 }
 
 // ============================================================
-// ELIMINATED CARD — карточка выбывшего с анимацией штампа
+// ELIMINATED CARD — карточка выбывшего (штамп в правом верхнем углу)
 // ============================================================
 
 function EliminatedCard({ suspect }: { suspect: any }) {
@@ -1107,61 +1107,64 @@ function EliminatedCard({ suspect }: { suspect: any }) {
         Вердикт следствия
       </div>
 
-      <div className="flex items-center gap-5 mb-5 flex-wrap">
-        <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-accent text-accent text-3xl">
-          <i className={`fa-solid ${suspect.icon}`} />
-        </span>
-        <div>
-          <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
-            {suspect.name}
+      {/* Верхняя строка: иконка + имя + роль СЛЕВА, штамп СПРАВА */}
+      <div className="flex items-center justify-between gap-5 flex-wrap mb-5">
+        <div className="flex items-center gap-5 flex-wrap">
+          <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-accent text-accent text-3xl">
+            <i className={`fa-solid ${suspect.icon}`} />
+          </span>
+          <div>
+            <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
+              {suspect.name}
+            </div>
+            <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
+              {suspect.role}
+            </div>
           </div>
-          <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
-            {suspect.role}
+        </div>
+
+        {/* Штамп «НЕ УБИЙЦА» — справа от имени, крупный */}
+        <div className="origin-center pointer-events-none">
+          <div
+            style={{
+              transform: `rotate(-8deg) scale(${stamped ? 1 : 2.2})`,
+              opacity: stamped ? 0.9 : 0,
+              transition:
+                'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
+              animation: stamped ? 'stampShake 0.4s ease-out' : 'none'
+            }}
+          >
+            <div
+              className="border-[6px] border-[#c0563a] px-8 py-3 rounded-md"
+              style={{
+                boxShadow: '0 0 40px rgba(192, 86, 58, 0.4)',
+                background: 'rgba(192, 86, 58, 0.05)'
+              }}
+            >
+              <span
+                className="font-serif font-bold tracking-[0.15em] text-[#c0563a] text-[clamp(28px,4vw,52px)] whitespace-nowrap"
+                style={{ textShadow: '0 0 20px rgba(192, 86, 58, 0.5)' }}
+              >
+                НЕ УБИЙЦА
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      <p className="text-[15px] text-muted leading-relaxed m-0 max-w-[60%] md:max-w-[65%]">
+      {/* Текст вердикта — во всю ширину, как было */}
+      <p className="text-[15px] text-muted leading-relaxed m-0">
         {suspect.verdict ||
           'Большинство команд назвало этого подозреваемого — но это не убийца. Он выбывает из расследования.'}
       </p>
 
-      {/* Штамп «НЕ УБИЙЦА» — правый край */}
-      <div className="absolute top-1/2 right-4 md:right-10 -translate-y-1/2 pointer-events-none">
-        <div
-          className="origin-center"
-          style={{
-            transform: `rotate(-12deg) scale(${stamped ? 1 : 2.2})`,
-            opacity: stamped ? 0.85 : 0,
-            transition:
-              'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
-            animation: stamped ? 'stampShake 0.4s ease-out' : 'none'
-          }}
-        >
-          <div
-            className="border-[6px] border-[#c0563a] px-8 py-3 rounded-md"
-            style={{
-              boxShadow: '0 0 40px rgba(192, 86, 58, 0.4)',
-              background: 'rgba(192, 86, 58, 0.05)'
-            }}
-          >
-            <span
-              className="font-serif font-bold tracking-[0.15em] text-[#c0563a] text-[clamp(24px,3.2vw,44px)] whitespace-nowrap"
-              style={{ textShadow: '0 0 20px rgba(192, 86, 58, 0.5)' }}
-            >
-              НЕ УБИЙЦА
-            </span>
-          </div>
-        </div>
-      </div>
-
       <style>{`
         @keyframes stampShake {
-          0%   { transform: rotate(-12deg) scale(1); }
-          20%  { transform: rotate(-13deg) scale(1); }
-          40%  { transform: rotate(-11deg) scale(1); }
-          60%  { transform: rotate(-12.5deg) scale(1); }
-          100% { transform: rotate(-12deg) scale(1); }
+          0%   { transform: rotate(-8deg) scale(1); }
+          20%  { transform: rotate(-10deg) scale(1); }
+          40%  { transform: rotate(-6deg) scale(1); }
+          60%  { transform: rotate(-9deg) scale(1); }
+          100% { transform: rotate(-8deg) scale(1); }
         }
       `}</style>
     </div>
@@ -1169,7 +1172,7 @@ function EliminatedCard({ suspect }: { suspect: any }) {
 }
 
 // ============================================================
-// FINAL VERDICT CARD — карточка «Виктор оправдан» с зелёным штампом
+// FINAL VERDICT CARD — «Виктор оправдан» (штамп в правом верхнем углу)
 // ============================================================
 
 function FinalVerdictCard({ suspect }: { suspect: any }) {
@@ -1222,59 +1225,62 @@ function FinalVerdictCard({ suspect }: { suspect: any }) {
         Подозрения сняты
       </div>
 
-      <div className="flex items-center gap-5 mb-5 flex-wrap">
-        <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-[#3fb39c] text-[#3fb39c] text-3xl">
-          <i className={`fa-solid ${suspect.icon}`} />
-        </span>
-        <div>
-          <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
-            {suspect.name}
+      {/* Верхняя строка: иконка + имя + роль СЛЕВА, штамп СПРАВА */}
+      <div className="flex items-center justify-between gap-5 flex-wrap mb-5">
+        <div className="flex items-center gap-5 flex-wrap">
+          <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-[#3fb39c] text-[#3fb39c] text-3xl">
+            <i className={`fa-solid ${suspect.icon}`} />
+          </span>
+          <div>
+            <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
+              {suspect.name}
+            </div>
+            <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
+              {suspect.role}
+            </div>
           </div>
-          <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
-            {suspect.role}
+        </div>
+
+        {/* Штамп «ОПРАВДАН» — справа от имени, крупный */}
+        <div className="origin-center pointer-events-none">
+          <div
+            style={{
+              transform: `rotate(8deg) scale(${stamped ? 1 : 2.2})`,
+              opacity: stamped ? 0.9 : 0,
+              transition:
+                'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
+              animation: stamped ? 'stampShakeGreen 0.4s ease-out' : 'none'
+            }}
+          >
+            <div
+              className="border-[6px] border-[#3fb39c] px-8 py-3 rounded-md"
+              style={{
+                boxShadow: '0 0 40px rgba(63, 179, 156, 0.4)',
+                background: 'rgba(63, 179, 156, 0.05)'
+              }}
+            >
+              <span
+                className="font-serif font-bold tracking-[0.15em] text-[#3fb39c] text-[clamp(28px,4vw,52px)] whitespace-nowrap"
+                style={{ textShadow: '0 0 20px rgba(63, 179, 156, 0.5)' }}
+              >
+                ОПРАВДАН
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
+      {/* Текст вердикта — во всю ширину, как было */}
       <p className="text-[15px] text-muted leading-relaxed m-0">
         {suspect.verdict || ''}
       </p>
 
-      {/* Штамп «ОПРАВДАН» — правый край */}
-      <div className="absolute top-1/2 right-4 md:right-10 -translate-y-1/2 pointer-events-none">
-        <div
-          className="origin-center"
-          style={{
-            transform: `rotate(8deg) scale(${stamped ? 1 : 2.2})`,
-            opacity: stamped ? 0.85 : 0,
-            transition:
-              'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
-            animation: stamped ? 'stampShakeGreen 0.4s ease-out' : 'none'
-          }}
-        >
-          <div
-            className="border-[6px] border-[#3fb39c] px-8 py-3 rounded-md"
-            style={{
-              boxShadow: '0 0 40px rgba(63, 179, 156, 0.4)',
-              background: 'rgba(63, 179, 156, 0.05)'
-            }}
-          >
-            <span
-              className="font-serif font-bold tracking-[0.15em] text-[#3fb39c] text-[clamp(24px,3.2vw,44px)] whitespace-nowrap"
-              style={{ textShadow: '0 0 20px rgba(63, 179, 156, 0.5)' }}
-            >
-              ОПРАВДАН
-            </span>
-          </div>
-        </div>
-      </div>
-
       <style>{`
         @keyframes stampShakeGreen {
           0%   { transform: rotate(8deg) scale(1); }
-          20%  { transform: rotate(7deg) scale(1); }
-          40%  { transform: rotate(9deg) scale(1); }
-          60%  { transform: rotate(7.5deg) scale(1); }
+          20%  { transform: rotate(6deg) scale(1); }
+          40%  { transform: rotate(10deg) scale(1); }
+          60%  { transform: rotate(7deg) scale(1); }
           100% { transform: rotate(8deg) scale(1); }
         }
       `}</style>
