@@ -41,9 +41,8 @@ export default function Screen() {
   const sock = useRef(getSocket());
   const speech = useSpeech();
   const [bgUrl, setBgUrl] = useState<string>('');
-  const joinedRef = useRef(false); // защита от дублирующегося screen:join (StrictMode)
+  const joinedRef = useRef(false);
 
-  // Хелпер для клиентских трейсов
   const trace = (event: string, data?: any) => {
     if (!code) return;
     sock.current.emit('client:trace', { code, event, data });
@@ -155,7 +154,6 @@ export default function Screen() {
         />
       )}
 
-      {/* SVG-сцены по фазам */}
       {phase === 'intro' && <IntroScene />}
       {phase === 'story' && round === 1 && <Chapter1Scene />}
       {phase === 'story' && round === 2 && <Chapter2Scene />}
@@ -559,7 +557,7 @@ function Lobby({ code, qr, teams, advance, goBack, busy, sock, trace }: any) {
 }
 
 // ============================================================
-// INTRO (Дело открыто)
+// INTRO
 // ============================================================
 
 function Intro({ scenario, advance, goBack, busy }: any) {
@@ -744,7 +742,7 @@ function Story({ chapter, round, advance, goBack, busy, speech }: any) {
 }
 
 // ============================================================
-// DISCUSSION (обсуждение с доской улик)
+// DISCUSSION
 // ============================================================
 
 function Discussion({
@@ -1054,7 +1052,238 @@ function Voting({ scenario, aliveSuspects, advance, goBack, busy }: any) {
 }
 
 // ============================================================
-// RESULTS (итоги раунда)
+// ELIMINATED CARD — карточка выбывшего с анимацией штампа
+// ============================================================
+
+function EliminatedCard({ suspect }: { suspect: any }) {
+  const [stamped, setStamped] = useState(false);
+
+  useEffect(() => {
+    // Звук печати (если браузер разрешит)
+    const t = setTimeout(() => {
+      setStamped(true);
+      try {
+        const Ctx =
+          (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        const now = ctx.currentTime;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+          data[i] =
+            (Math.random() * 2 - 1) *
+            Math.exp(-i / (ctx.sampleRate * 0.03));
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 800;
+        src.connect(lp).connect(gain).connect(ctx.destination);
+        src.start();
+      } catch {}
+    }, 500);
+
+    return () => clearTimeout(t);
+  }, [suspect.id]);
+
+  return (
+    <div className="relative bg-panel border border-line rounded-2xl p-8 md:p-12 mb-10 overflow-hidden">
+      {/* Красная вспышка по краю при появлении штампа */}
+      <div
+        className="absolute inset-0 pointer-events-none rounded-2xl transition-opacity duration-300"
+        style={{
+          boxShadow: stamped
+            ? '0 0 60px -10px rgba(192, 86, 58, 0.6) inset'
+            : 'none',
+          opacity: stamped ? 1 : 0
+        }}
+      />
+
+      <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-accent mb-4">
+        Вердикт следствия
+      </div>
+
+      <div className="flex items-center gap-5 mb-5 flex-wrap">
+        <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-accent text-accent text-3xl">
+          <i className={`fa-solid ${suspect.icon}`} />
+        </span>
+        <div>
+          <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
+            {suspect.name}
+          </div>
+          <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
+            {suspect.role}
+          </div>
+        </div>
+      </div>
+
+      <p className="text-[15px] text-muted leading-relaxed m-0">
+        {suspect.verdict ||
+          'Большинство команд назвало этого подозреваемого — но это не убийца. Он выбывает из расследования.'}
+      </p>
+
+      {/* Штамп «НЕ УБИЙЦА» */}
+      <div
+        className="absolute top-1/2 left-1/2 pointer-events-none"
+        style={{
+          transform: `translate(-50%, -50%) rotate(-12deg) scale(${
+            stamped ? 1 : 2.2
+          })`,
+          opacity: stamped ? 0.85 : 0,
+          transition:
+            'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
+          animation: stamped ? 'stampShake 0.4s ease-out' : 'none'
+        }}
+      >
+        <div
+          className="border-[6px] border-[#c0563a] px-8 py-3 rounded-md"
+          style={{
+            boxShadow: '0 0 40px rgba(192, 86, 58, 0.4)',
+            background: 'rgba(192, 86, 58, 0.05)'
+          }}
+        >
+          <span
+            className="font-serif font-bold tracking-[0.15em] text-[#c0563a] text-[clamp(28px,4vw,52px)] whitespace-nowrap"
+            style={{ textShadow: '0 0 20px rgba(192, 86, 58, 0.5)' }}
+          >
+            НЕ УБИЙЦА
+          </span>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes stampShake {
+          0% { transform: translate(-50%, -50%) rotate(-12deg) scale(1); }
+          20% { transform: translate(-49%, -51%) rotate(-13deg) scale(1); }
+          40% { transform: translate(-51%, -49%) rotate(-11deg) scale(1); }
+          60% { transform: translate(-49.5%, -50%) rotate(-12.5deg) scale(1); }
+          100% { transform: translate(-50%, -50%) rotate(-12deg) scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ============================================================
+// FINAL VERDICT CARD — карточка «Виктор оправдан» с зелёным штампом
+// ============================================================
+
+function FinalVerdictCard({ suspect }: { suspect: any }) {
+  const [stamped, setStamped] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setStamped(true);
+      try {
+        const Ctx =
+          (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        const now = ctx.currentTime;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+          data[i] =
+            (Math.random() * 2 - 1) *
+            Math.exp(-i / (ctx.sampleRate * 0.04));
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 1000;
+        src.connect(lp).connect(gain).connect(ctx.destination);
+        src.start();
+      } catch {}
+    }, 500);
+    return () => clearTimeout(t);
+  }, [suspect.id]);
+
+  return (
+    <div className="relative bg-panel border border-line rounded-2xl p-8 md:p-12 mb-10 overflow-hidden">
+      <div
+        className="absolute inset-0 pointer-events-none rounded-2xl transition-opacity duration-300"
+        style={{
+          boxShadow: stamped
+            ? '0 0 60px -10px rgba(63, 179, 156, 0.6) inset'
+            : 'none',
+          opacity: stamped ? 1 : 0
+        }}
+      />
+
+      <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#3fb39c] mb-4">
+        Подозрения сняты
+      </div>
+
+      <div className="flex items-center gap-5 mb-5 flex-wrap">
+        <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-[#3fb39c] text-[#3fb39c] text-3xl">
+          <i className={`fa-solid ${suspect.icon}`} />
+        </span>
+        <div>
+          <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
+            {suspect.name}
+          </div>
+          <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
+            {suspect.role}
+          </div>
+        </div>
+      </div>
+
+      <p className="text-[15px] text-muted leading-relaxed m-0">
+        {suspect.verdict || ''}
+      </p>
+
+      <div
+        className="absolute top-1/2 left-1/2 pointer-events-none"
+        style={{
+          transform: `translate(-50%, -50%) rotate(8deg) scale(${
+            stamped ? 1 : 2.2
+          })`,
+          opacity: stamped ? 0.85 : 0,
+          transition:
+            'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
+          animation: stamped ? 'stampShakeGreen 0.4s ease-out' : 'none'
+        }}
+      >
+        <div
+          className="border-[6px] border-[#3fb39c] px-8 py-3 rounded-md"
+          style={{
+            boxShadow: '0 0 40px rgba(63, 179, 156, 0.4)',
+            background: 'rgba(63, 179, 156, 0.05)'
+          }}
+        >
+          <span
+            className="font-serif font-bold tracking-[0.15em] text-[#3fb39c] text-[clamp(28px,4vw,52px)] whitespace-nowrap"
+            style={{ textShadow: '0 0 20px rgba(63, 179, 156, 0.5)' }}
+          >
+            ОПРАВДАН
+          </span>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes stampShakeGreen {
+          0% { transform: translate(-50%, -50%) rotate(8deg) scale(1); }
+          20% { transform: translate(-49%, -51%) rotate(7deg) scale(1); }
+          40% { transform: translate(-51%, -49%) rotate(9deg) scale(1); }
+          60% { transform: translate(-49.5%, -50%) rotate(7.5deg) scale(1); }
+          100% { transform: translate(-50%, -50%) rotate(8deg) scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ============================================================
+// RESULTS
 // ============================================================
 
 function Results({
@@ -1071,35 +1300,16 @@ function Results({
   const elimSuspect = elimId ? safeSuspects.find((s: any) => s.id === elimId) : null;
   const isLast = round >= totalRounds;
 
+  const fmtScore = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+
   if (isLast) {
+    const viktor = suspects.find((s: any) => s.id === 's5') || { id: 's5', name: 'Виктор', role: 'Бывший партнёр', icon: 'fa-briefcase', verdict: '' };
     return (
       <div>
         <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-8">
           Вердикт следствия
         </h2>
-
-        <div className="bg-panel border border-line rounded-2xl p-8 md:p-12 mb-10">
-          <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-accent mb-4">
-            Подозрения сняты
-          </div>
-          <div className="flex items-center gap-5 mb-5 flex-wrap">
-            <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-accent text-accent text-3xl">
-              <i className="fa-solid fa-briefcase" />
-            </span>
-            <div>
-              <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
-                Виктор
-              </div>
-              <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
-                Бывший партнёр
-              </div>
-            </div>
-          </div>
-          <p className="text-[15px] text-muted leading-relaxed m-0">
-            {suspects.find((s: any) => s.id === 's5')?.verdict || ''}
-          </p>
-        </div>
-
+        <FinalVerdictCard suspect={viktor} />
         <button
           onClick={advance}
           disabled={busy}
@@ -1120,30 +1330,7 @@ function Results({
         Итоги раунда {round}
       </h2>
 
-      {elimSuspect && (
-        <div className="bg-panel border border-line rounded-2xl p-8 md:p-12 mb-10">
-          <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-accent mb-4">
-            Вердикт следствия
-          </div>
-          <div className="flex items-center gap-5 mb-5 flex-wrap">
-            <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-accent text-accent text-3xl">
-              <i className={`fa-solid ${elimSuspect.icon}`} />
-            </span>
-            <div>
-              <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
-                {elimSuspect.name}
-              </div>
-              <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
-                {elimSuspect.role}
-              </div>
-            </div>
-          </div>
-          <p className="text-[15px] text-muted leading-relaxed m-0">
-            {elimSuspect.verdict ||
-              'Большинство команд назвало этого подозреваемого — но это не убийца. Он выбывает из расследования.'}
-          </p>
-        </div>
-      )}
+      {elimSuspect && <EliminatedCard suspect={elimSuspect} />}
 
       <button
         onClick={advance}
@@ -1157,7 +1344,7 @@ function Results({
 }
 
 // ============================================================
-// END (разгадка)
+// END
 // ============================================================
 
 function EndView({ state, onReset, speech, onShowResults, code, sock, trace }: any) {
@@ -1243,7 +1430,7 @@ function EndView({ state, onReset, speech, onShowResults, code, sock, trace }: a
 }
 
 // ============================================================
-// ACCUSE MODAL (модалка обвинения)
+// ACCUSE MODAL
 // ============================================================
 
 function AccuseModal({
@@ -1353,6 +1540,10 @@ function VotingCountdown() {
   return <span>0:{String(left).padStart(2, '0')}</span>;
 }
 
+// ============================================================
+// RESULTS FINAL (итоговая таблица)
+// ============================================================
+
 function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
   const sorted = [...(teams || [])].sort((a: any, b: any) => b.score - a.score);
   const fmtScore = (n: number) => (n > 0 ? `+${n}` : `${n}`);
@@ -1361,11 +1552,25 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
       <h1 className="font-serif text-[clamp(44px,5.5vw,72px)] leading-none text-text font-semibold mb-3">
         Итоги расследования
       </h1>
-      <p className="text-[15px] text-[#b3a698] leading-snug max-w-[720px] mb-8">
-        С вами были <b className="text-accent font-semibold">ваш ресторан</b> и{' '}
-        <b className="text-accent font-semibold">Тайна за столом</b>. До встречи в новых
-        расследованиях!
-      </p>
+      <div className="text-[15px] text-[#b3a698] leading-relaxed max-w-[720px] mb-8">
+        <p className="m-0 mb-2">
+          С вами были <b className="text-accent font-semibold">ваш Пивотаун</b> и{' '}
+          <b className="text-accent font-semibold">«Тайна за столом»</b>. До встречи в новых
+          расследованиях!
+        </p>
+        <p className="m-0">
+          Больше игр и событий — на сайте{' '}
+          <a
+            href="https://xn--b1aecbkqj0d.xn--p1ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent underline decoration-accent/40 hover:decoration-accent transition-colors"
+          >
+            пивотаун.рф
+          </a>
+          .
+        </p>
+      </div>
 
       <div className="bg-panel border border-line rounded-2xl overflow-x-auto mb-10">
         <table className="w-full text-sm min-w-[560px]">
@@ -1398,11 +1603,23 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
                   </td>
                   <td className="p-4 text-text">{t.name}</td>
                   {[0, 1, 2, 3].map(ri => (
-                    <td key={ri} className={'p-4 text-right tabular-nums ' + (rs[ri] < 0 ? 'text-accent' : rs[ri] > 0 ? 'text-green-400' : 'text-muted')}>
+                    <td
+                      key={ri}
+                      className={
+                        'p-4 text-right tabular-nums ' +
+                        (rs[ri] < 0
+                          ? 'text-accent'
+                          : rs[ri] > 0
+                          ? 'text-green-400'
+                          : 'text-muted')
+                      }
+                    >
                       {rs[ri] === 0 ? '—' : fmtScore(rs[ri])}
                     </td>
                   ))}
-                  <td className="p-4 text-right font-serif text-2xl font-bold text-text tabular-nums">{t.score}</td>
+                  <td className="p-4 text-right font-serif text-2xl font-bold text-text tabular-nums">
+                    {t.score}
+                  </td>
                 </tr>
               );
             })}
