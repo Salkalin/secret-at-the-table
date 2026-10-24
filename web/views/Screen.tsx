@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { getSocket } from '../socket';
 import { useSpeech } from '../SpeechContext';
+import { useAudio, useAudioButton } from '../audio';
 import { ROMAN, GAME_RULES, GAME_NOTE, REVEAL_MARKS, ROUND_SECONDS } from '../landing/data';
 import {
   IntroScene,
@@ -40,6 +41,7 @@ export default function Screen() {
   const [accuseOpen, setAccuseOpen] = useState(false);
   const sock = useRef(getSocket());
   const speech = useSpeech();
+  const audio = useAudio();
   const [bgUrl, setBgUrl] = useState<string>('');
   const joinedRef = useRef(false);
 
@@ -56,6 +58,16 @@ export default function Screen() {
     const url = showBg ? ch?.bg || sc?.bg || '' : '';
     setBgUrl(url);
   }, [state?.phase, state?.round, state?.chapter?.bg, state?.scenario?.bg]);
+
+  // Останавливать озвучку при смене фазы
+  const prevPhaseRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!state?.phase) return;
+    if (prevPhaseRef.current && prevPhaseRef.current !== state.phase) {
+      audio.stop();
+    }
+    prevPhaseRef.current = state.phase;
+  }, [state?.phase, audio]);
 
   useEffect(() => {
     const s = sock.current;
@@ -189,12 +201,7 @@ export default function Screen() {
       )}
 
       {phase === 'intro' && (
-        <Intro
-          scenario={scenario}
-          advance={advance}
-          goBack={goBack}
-          busy={busy}
-        />
+        <Intro scenario={scenario} advance={advance} goBack={goBack} busy={busy} />
       )}
 
       {phase === 'story' && (
@@ -204,8 +211,6 @@ export default function Screen() {
           advance={advance}
           goBack={goBack}
           busy={busy}
-          speech={speech}
-          scenario={scenario}
         />
       )}
 
@@ -224,7 +229,6 @@ export default function Screen() {
           advance={advance}
           goBack={goBack}
           busy={busy}
-          speech={speech}
           onAccuse={() => setAccuseOpen(true)}
           onTogglePause={togglePause}
         />
@@ -376,7 +380,7 @@ function Header({
                 ? 'border-accent text-accent'
                 : 'border-line text-muted hover:text-text')
             }
-            title={speech.enabled ? 'Отключить озвучку' : 'Включить озвучку'}
+            title={speech.enabled ? 'Отключить синтез речи' : 'Включить синтез речи'}
           >
             {speech.enabled ? '🔊' : '🔇'}
           </button>
@@ -494,18 +498,10 @@ function Lobby({ code, qr, teams, advance, goBack, busy, sock, trace }: any) {
           <table className="w-full text-sm">
             <thead>
               <tr>
-                <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold pb-3 px-2 border-b border-line">
-                  #
-                </th>
-                <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold pb-3 px-2 border-b border-line">
-                  Команда
-                </th>
-                <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold pb-3 px-2 border-b border-line">
-                  Капитан
-                </th>
-                <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold pb-3 px-2 border-b border-line">
-                  Статус
-                </th>
+                <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold pb-3 px-2 border-b border-line">#</th>
+                <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold pb-3 px-2 border-b border-line">Команда</th>
+                <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold pb-3 px-2 border-b border-line">Капитан</th>
+                <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold pb-3 px-2 border-b border-line">Статус</th>
               </tr>
             </thead>
             <tbody>
@@ -521,9 +517,7 @@ function Lobby({ code, qr, teams, advance, goBack, busy, sock, trace }: any) {
               )}
               {teams.map((t: any, i: number) => (
                 <tr key={t.id} className="border-b border-line last:border-0">
-                  <td className="py-3.5 px-2 font-mono text-muted text-xs">
-                    {pad(i + 1)}
-                  </td>
+                  <td className="py-3.5 px-2 font-mono text-muted text-xs">{pad(i + 1)}</td>
                   <td className="py-3.5 px-2">
                     <div className="flex items-center gap-3 text-text font-bold">
                       <span className="w-8 h-8 rounded-full grid place-items-center bg-white/5 border border-accent text-accent font-serif text-sm font-bold">
@@ -557,10 +551,11 @@ function Lobby({ code, qr, teams, advance, goBack, busy, sock, trace }: any) {
 }
 
 // ============================================================
-// INTRO
+// INTRO (кнопка «Озвучить правила» — справа над списком)
 // ============================================================
 
 function Intro({ scenario, advance, goBack, busy }: any) {
+  const audio = useAudioButton(scenario.rulesAudioUrl);
   return (
     <div className="grid md:grid-cols-2 gap-10 lg:gap-16 items-start">
       <div>
@@ -576,21 +571,15 @@ function Intro({ scenario, advance, goBack, busy }: any) {
 
         <dl className="space-y-5 m-0">
           <div>
-            <dt className="text-[10.5px] tracking-[.2em] uppercase text-accent font-bold mb-1.5">
-              Преступление
-            </dt>
+            <dt className="text-[10.5px] tracking-[.2em] uppercase text-accent font-bold mb-1.5">Преступление</dt>
             <dd className="m-0 text-[15px] text-text">{scenario.crime}</dd>
           </div>
           <div>
-            <dt className="text-[10.5px] tracking-[.2em] uppercase text-accent font-bold mb-1.5">
-              Жертва
-            </dt>
+            <dt className="text-[10.5px] tracking-[.2em] uppercase text-accent font-bold mb-1.5">Жертва</dt>
             <dd className="m-0 text-[15px] text-text">{scenario.victim}</dd>
           </div>
           <div>
-            <dt className="text-[10.5px] tracking-[.2em] uppercase text-accent font-bold mb-1.5">
-              Место
-            </dt>
+            <dt className="text-[10.5px] tracking-[.2em] uppercase text-accent font-bold mb-1.5">Место</dt>
             <dd className="m-0 text-[15px] text-text">{scenario.location}</dd>
           </div>
           <div>
@@ -614,10 +603,21 @@ function Intro({ scenario, advance, goBack, busy }: any) {
       </div>
 
       <div>
-        <h3 className="font-serif text-[26px] text-text flex items-center gap-3 m-0 mb-4">
-          <i className="fa-solid fa-scroll text-accent text-base" />
-          Правила игры
-        </h3>
+        <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+          <h3 className="font-serif text-[26px] text-text flex items-center gap-3 m-0">
+            <i className="fa-solid fa-scroll text-accent text-base" />
+            Правила игры
+          </h3>
+          {scenario.rulesAudioUrl && (
+            <button
+              onClick={audio.toggle}
+              className="px-4 py-2 rounded-lg border border-line bg-panel hover:bg-panel2 text-sm flex items-center gap-2"
+            >
+              <i className={`fa-solid ${audio.playing ? 'fa-pause' : 'fa-volume-high'}`} />
+              {audio.playing ? 'Пауза' : 'Озвучить правила'}
+            </button>
+          )}
+        </div>
         <ol className="list-none p-0 m-0 space-y-2.5">
           {GAME_RULES.map(r => (
             <li
@@ -640,28 +640,25 @@ function Intro({ scenario, advance, goBack, busy }: any) {
 }
 
 // ============================================================
-// STORY (Глава)
+// STORY
 // ============================================================
 
-function Story({ chapter, round, advance, goBack, busy, speech }: any) {
+function Story({ chapter, round, advance, goBack, busy }: any) {
+  const audio = useAudioButton(chapter?.audioUrl);
   const hasChapter = !!chapter;
 
   if (!hasChapter) {
     return (
       <div className="w-full mt-6 flex flex-col items-center justify-center text-center">
-        <div className="text-[11px] font-bold tracking-[0.22em] uppercase text-accent mb-3">
-          Финал
-        </div>
+        <div className="text-[11px] font-bold tracking-[0.22em] uppercase text-accent mb-3">Финал</div>
         <h1 className="font-serif text-[clamp(44px,6vw,72px)] leading-none text-text font-semibold mb-6">
           Последнее слово
         </h1>
-
         <p className="my-8 text-[18px] leading-[1.75] text-text max-w-[680px]">
           Улики закончились. Каждый оставшийся детектив называет имя убийцы.
           <br />
           Кто угадает — выиграл дело.
         </p>
-
         <div className="flex items-center justify-center gap-5 mt-8 flex-wrap">
           <button
             onClick={advance}
@@ -689,32 +686,19 @@ function Story({ chapter, round, advance, goBack, busy, speech }: any) {
           <span>{chapter.atmosphere}</span>
         </div>
       )}
-
       <p className="my-8 pl-7 border-l-2 border-accent text-[18px] leading-[1.75] text-text max-w-[680px]">
         {chapter.text}
       </p>
 
-      {speech.supported && (
+      {chapter.audioUrl && (
         <div className="mt-6 mb-4 flex gap-3 flex-wrap">
           <button
-            onClick={() =>
-              speech.speak(
-                chapter.title + '. ' + chapter.atmosphere + '. ' + chapter.text,
-                { rate: 0.9, pitch: 0.9 }
-              )
-            }
-            className="px-4 py-2 rounded-lg border border-line bg-panel hover:bg-panel2 text-sm"
+            onClick={audio.toggle}
+            className="px-4 py-2 rounded-lg border border-line bg-panel hover:bg-panel2 text-sm flex items-center gap-2"
           >
-            🔊 Озвучить главу
+            <i className={`fa-solid ${audio.playing ? 'fa-pause' : 'fa-volume-high'}`} />
+            {audio.playing ? 'Пауза' : 'Озвучить главу'}
           </button>
-          {speech.speaking && (
-            <button
-              onClick={speech.stop}
-              className="px-4 py-2 rounded-lg border border-accent text-accent text-sm"
-            >
-              ⏹ Остановить
-            </button>
-          )}
         </div>
       )}
 
@@ -733,11 +717,33 @@ function Story({ chapter, round, advance, goBack, busy, speech }: any) {
         >
           ← Назад
         </button>
-        <span className="text-[13px] text-muted">
-          ведущий читает главу вслух — затем запустите таймер раунда
-        </span>
       </div>
     </div>
+  );
+}
+
+// ============================================================
+// CLUE AUDIO BUTTON
+// ============================================================
+
+function ClueAudioButton({ url }: { url?: string }) {
+  const audio = useAudioButton(url);
+  if (!url) return null;
+  return (
+    <button
+      onClick={audio.toggle}
+      className={
+        'ml-auto w-7 h-7 rounded-full grid place-items-center transition ' +
+        (audio.playing
+          ? 'bg-accent text-[#1d120c]'
+          : 'bg-[#1d120c] text-[#efe3cc] hover:bg-[#2a1c14]')
+      }
+      title={audio.playing ? 'Пауза' : 'Озвучить улику'}
+    >
+      <i
+        className={`fa-solid ${audio.playing ? 'fa-pause' : 'fa-volume-high'} text-[11px]`}
+      />
+    </button>
   );
 }
 
@@ -747,8 +753,6 @@ function Story({ chapter, round, advance, goBack, busy, speech }: any) {
 
 function Discussion({
   scenario,
-  chapter,
-  clues,
   revealedClueIndices,
   round,
   roundStartedAt,
@@ -757,13 +761,11 @@ function Discussion({
   roundDurationSec,
   clueTimesSec,
   advance,
-  goBack,
   busy,
-  speech,
-  onAccuse,
   onTogglePause
 }: any) {
   const [now, setNow] = useState(Date.now());
+  const audioGlobal = useAudio();
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
@@ -777,7 +779,6 @@ function Discussion({
   const duration = roundDurationSec || ROUND_SECONDS;
   const elapsedCapped = Math.min(elapsed, duration);
   const left = Math.max(0, duration - elapsed);
-  const running = left > 0 && !!roundStartedAt;
 
   const allClues = scenario.clues || [];
   const roundClues =
@@ -794,9 +795,15 @@ function Discussion({
       ? []
       : allClues
           .map((c: any, i: number) => ({ c, i }))
-          .filter(
-            (x: any) => x.c.round < round && revealedClueIndices.includes(x.i)
-          );
+          .filter((x: any) => x.c.round < round && revealedClueIndices.includes(x.i));
+
+  const playAll = () => {
+    const urls = roundClues
+      .filter(({ i }: any) => revealedClueIndices.includes(i))
+      .map(({ c }: any) => c.audioUrl)
+      .filter(Boolean);
+    if (urls.length) audioGlobal.playQueue(urls);
+  };
 
   return (
     <div>
@@ -838,11 +845,7 @@ function Discussion({
             className="w-10 h-10 rounded-full border border-line bg-panel hover:bg-panel2 disabled:opacity-40 transition"
             title={isPaused ? 'Продолжить' : 'Пауза'}
           >
-            <i
-              className={`fa-solid ${
-                isPaused ? 'fa-play text-accent' : 'fa-pause'
-              } text-sm`}
-            />
+            <i className={`fa-solid ${isPaused ? 'fa-play text-accent' : 'fa-pause'} text-sm`} />
           </button>
         </div>
 
@@ -858,9 +861,7 @@ function Discussion({
                   key={i}
                   className={
                     'absolute top-1/2 w-[11px] h-[11px] -mt-[5.5px] -ml-[5.5px] rounded-full border-1.5 transition ' +
-                    (elapsedCapped >= t
-                      ? 'bg-accent border-accent'
-                      : 'bg-[#1a110d] border-line')
+                    (elapsedCapped >= t ? 'bg-accent border-accent' : 'bg-[#1a110d] border-line')
                   }
                   style={{ left: `${(t / duration) * 100}%` }}
                 >
@@ -884,14 +885,21 @@ function Discussion({
           <i className="fa-solid fa-thumbtack text-accent text-base" />
           Доска улик
         </h3>
+        {roundClues.some(({ i }: any) => revealedClueIndices.includes(i)) && (
+          <button
+            onClick={playAll}
+            className="px-4 py-2 rounded-lg border border-line bg-panel hover:bg-panel2 text-sm flex items-center gap-2"
+          >
+            <i className="fa-solid fa-volume-high" />
+            Озвучить открытые улики
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {roundClues.map(({ c, i }: any) => {
           const revealed = revealedClueIndices.includes(i);
-          const markTime =
-            clueTimesSec[roundClues.findIndex((x: any) => x.i === i)] || 0;
-
+          const markTime = clueTimesSec[roundClues.findIndex((x: any) => x.i === i)] || 0;
           if (revealed) {
             return (
               <div
@@ -907,20 +915,16 @@ function Discussion({
                   <span className="w-8 h-8 rounded-lg bg-[#1d120c] text-[#efe3cc] grid place-items-center">
                     <i className={`fa-solid ${c.icon} text-[13px]`} />
                   </span>
-                  <b className="text-[14.5px] text-[#1d120c] font-bold">
-                    {c.name}
-                  </b>
+                  <b className="text-[14.5px] text-[#1d120c] font-bold">{c.name}</b>
+                  <ClueAudioButton url={c.audioUrl} />
                 </div>
-                <p className="m-0 flex-1 font-mono text-[13px] leading-relaxed text-[#3a281c]">
-                  {c.desc}
-                </p>
+                <p className="m-0 flex-1 font-mono text-[13px] leading-relaxed text-[#3a281c]">{c.desc}</p>
                 <small className="mt-3.5 pt-3 border-t border-dashed border-[rgba(42,28,20,.22)] text-[10px] tracking-[.16em] uppercase text-[#8a6a52] font-bold">
                   Глава {ROMAN[c.round - 1] || c.round} · открыта на {fmt(markTime)}
                 </small>
               </div>
             );
           }
-
           return (
             <div
               key={i}
@@ -930,13 +934,12 @@ function Discussion({
               <b className="font-mono text-2xl text-text font-medium tabular-nums">
                 {fmt(Math.max(0, markTime - elapsedCapped))}
               </b>
-              <span className="text-[12px] text-muted tracking-wide">
-                до улики {pad(i + 1)}
-              </span>
+              <span className="text-[12px] text-muted tracking-wide">до улики {pad(i + 1)}</span>
             </div>
           );
         })}
       </div>
+
       {archiveClues.length > 0 && (
         <>
           <div className="mt-10 text-[11px] tracking-[.2em] uppercase text-muted font-bold">
@@ -957,13 +960,10 @@ function Discussion({
                   <span className="w-8 h-8 rounded-lg bg-[#1d120c] text-[#efe3cc] grid place-items-center">
                     <i className={`fa-solid ${c.icon} text-[13px]`} />
                   </span>
-                  <b className="text-[14.5px] text-[#1d120c] font-bold">
-                    {c.name}
-                  </b>
+                  <b className="text-[14.5px] text-[#1d120c] font-bold">{c.name}</b>
+                  <ClueAudioButton url={c.audioUrl} />
                 </div>
-                <p className="m-0 flex-1 font-mono text-[13px] leading-relaxed text-[#3a281c]">
-                  {c.desc}
-                </p>
+                <p className="m-0 flex-1 font-mono text-[13px] leading-relaxed text-[#3a281c]">{c.desc}</p>
                 <small className="mt-3.5 pt-3 border-t border-dashed border-[rgba(42,28,20,.22)] text-[10px] tracking-[.16em] uppercase text-[#8a6a52] font-bold">
                   Глава {ROMAN[c.round - 1] || c.round}
                 </small>
@@ -979,8 +979,7 @@ function Discussion({
           disabled={busy}
           className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
         >
-          {round >= 4 ? 'Финальная разгадка' : 'Голосование'}{' '}
-          <i className="fa-solid fa-arrow-right" />
+          {round >= 4 ? 'Финальная разгадка' : 'Голосование'} <i className="fa-solid fa-arrow-right" />
         </button>
       </div>
     </div>
@@ -988,75 +987,12 @@ function Discussion({
 }
 
 // ============================================================
-// VOTING (заглушка с инструкцией)
-// ============================================================
-
-function Voting({ scenario, aliveSuspects, advance, goBack, busy }: any) {
-  return (
-    <div>
-      <div className="text-center mb-8">
-        <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-3">
-          Итоги расследования
-        </h2>
-        <p className="text-muted max-w-[560px] mx-auto">
-          Капитаны команд выбирают подозреваемого <b>на своих телефонах</b>. Ведущий
-          дожидается всех и подводит итоги.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-[1000px] mx-auto mb-8">
-        {aliveSuspects.map((s: any) => (
-          <div key={s.id} className="bg-panel border border-line rounded-2xl p-5">
-            <div className="flex items-center gap-3 mb-3">
-              <span className="w-12 h-12 rounded-full grid place-items-center bg-panel2 border border-line text-accent text-lg">
-                <i className={`fa-solid ${s.icon}`} />
-              </span>
-              <div>
-                <div className="font-serif text-xl text-text leading-tight">{s.name}</div>
-                <div className="text-[10.5px] tracking-wider uppercase text-muted">
-                  {s.role}
-                </div>
-              </div>
-            </div>
-            <div className="text-[13px] text-muted leading-snug mb-2">{s.description}</div>
-            <div className="text-[12px] text-muted">
-              <div>
-                <span className="text-accent">Мотив:</span> {s.motive}
-              </div>
-              <div>
-                <span className="text-accent">Алиби:</span> {s.alibi}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex gap-3 justify-center flex-wrap">
-        <button
-          onClick={advance}
-          disabled={busy}
-          className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
-        >
-          Подвести итоги <i className="fa-solid fa-gavel" />
-        </button>
-        <button
-          onClick={goBack}
-          disabled={busy}
-          className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] disabled:opacity-40"
-        >
-          ← Назад
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// ELIMINATED CARD — карточка выбывшего (штамп в правом верхнем углу)
+// ELIMINATED CARD (оранжевый штамп + озвучка)
 // ============================================================
 
 function EliminatedCard({ suspect }: { suspect: any }) {
   const [stamped, setStamped] = useState(false);
+  const audio = useAudioButton(suspect.verdictAudioUrl);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -1070,9 +1006,7 @@ function EliminatedCard({ suspect }: { suspect: any }) {
         const buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
         const data = buf.getChannelData(0);
         for (let i = 0; i < data.length; i++) {
-          data[i] =
-            (Math.random() * 2 - 1) *
-            Math.exp(-i / (ctx.sampleRate * 0.03));
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.03));
         }
         const src = ctx.createBufferSource();
         src.buffer = buf;
@@ -1086,23 +1020,18 @@ function EliminatedCard({ suspect }: { suspect: any }) {
         src.start();
       } catch {}
     }, 500);
-
     return () => clearTimeout(t);
   }, [suspect.id]);
 
   return (
     <div className="relative bg-panel border border-line rounded-2xl p-8 md:p-12 mb-10 overflow-hidden">
-      {/* Оранжевая вспышка по краю */}
       <div
         className="absolute inset-0 pointer-events-none rounded-2xl transition-opacity duration-300"
         style={{
-          boxShadow: stamped
-            ? '0 0 60px -10px rgba(242, 165, 65, 0.6) inset'
-            : 'none',
+          boxShadow: stamped ? '0 0 60px -10px rgba(242, 165, 65, 0.6) inset' : 'none',
           opacity: stamped ? 1 : 0
         }}
       />
-
       <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-accent mb-4">
         Вердикт следствия
       </div>
@@ -1122,23 +1051,18 @@ function EliminatedCard({ suspect }: { suspect: any }) {
           </div>
         </div>
 
-        {/* Штамп «НЕ УБИЙЦА» — оранжевый */}
         <div className="origin-center pointer-events-none -mt-6 md:-mt-10">
           <div
             style={{
               transform: `rotate(-8deg) scale(${stamped ? 1 : 2.2})`,
               opacity: stamped ? 0.9 : 0,
-              transition:
-                'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
+              transition: 'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
               animation: stamped ? 'stampShake 0.4s ease-out' : 'none'
             }}
           >
             <div
               className="border-[6px] border-[#f2a541] px-8 py-3 rounded-md"
-              style={{
-                boxShadow: '0 0 40px rgba(242, 165, 65, 0.4)',
-                background: 'rgba(242, 165, 65, 0.05)'
-              }}
+              style={{ boxShadow: '0 0 40px rgba(242, 165, 65, 0.4)', background: 'rgba(242, 165, 65, 0.05)' }}
             >
               <span
                 className="font-serif font-bold tracking-[0.15em] text-[#f2a541] text-[clamp(28px,4vw,52px)] whitespace-nowrap"
@@ -1156,6 +1080,18 @@ function EliminatedCard({ suspect }: { suspect: any }) {
           'Большинство команд назвало этого подозреваемого — но это не убийца. Он выбывает из расследования.'}
       </p>
 
+      {suspect.verdictAudioUrl && (
+        <div className="mt-6 flex gap-3 flex-wrap">
+          <button
+            onClick={audio.toggle}
+            className="px-4 py-2 rounded-lg border border-line bg-panel hover:bg-panel2 text-sm flex items-center gap-2"
+          >
+            <i className={`fa-solid ${audio.playing ? 'fa-pause' : 'fa-volume-high'}`} />
+            {audio.playing ? 'Пауза' : 'Озвучить вердикт'}
+          </button>
+        </div>
+      )}
+
       <style>{`
         @keyframes stampShake {
           0%   { transform: rotate(-8deg) scale(1); }
@@ -1170,39 +1106,16 @@ function EliminatedCard({ suspect }: { suspect: any }) {
 }
 
 // ============================================================
-// FINAL VERDICT CARD — «Виктор оправдан» (штамп в правом верхнем углу)
+// FINAL VERDICT CARD (зелёный штамп + озвучка)
 // ============================================================
 
 function FinalVerdictCard({ suspect }: { suspect: any }) {
   const [stamped, setStamped] = useState(false);
+  const audio = useAudioButton(suspect.verdictAudioUrl);
 
   useEffect(() => {
     const t = setTimeout(() => {
       setStamped(true);
-      try {
-        const Ctx =
-          (window as any).AudioContext || (window as any).webkitAudioContext;
-        if (!Ctx) return;
-        const ctx = new Ctx();
-        const now = ctx.currentTime;
-        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate);
-        const data = buf.getChannelData(0);
-        for (let i = 0; i < data.length; i++) {
-          data[i] =
-            (Math.random() * 2 - 1) *
-            Math.exp(-i / (ctx.sampleRate * 0.04));
-        }
-        const src = ctx.createBufferSource();
-        src.buffer = buf;
-        const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-        const lp = ctx.createBiquadFilter();
-        lp.type = 'lowpass';
-        lp.frequency.value = 1000;
-        src.connect(lp).connect(gain).connect(ctx.destination);
-        src.start();
-      } catch {}
     }, 500);
     return () => clearTimeout(t);
   }, [suspect.id]);
@@ -1212,50 +1125,37 @@ function FinalVerdictCard({ suspect }: { suspect: any }) {
       <div
         className="absolute inset-0 pointer-events-none rounded-2xl transition-opacity duration-300"
         style={{
-          boxShadow: stamped
-            ? '0 0 60px -10px rgba(63, 179, 156, 0.6) inset'
-            : 'none',
+          boxShadow: stamped ? '0 0 60px -10px rgba(63, 179, 156, 0.6) inset' : 'none',
           opacity: stamped ? 1 : 0
         }}
       />
-
       <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#3fb39c] mb-4">
         Подозрения сняты
       </div>
 
-      {/* Верхняя строка: иконка + имя + роль СЛЕВА, штамп СПРАВА (высоко) */}
       <div className="flex items-start justify-between gap-5 flex-wrap mb-6 md:mb-8">
         <div className="flex items-center gap-5 flex-wrap">
           <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-[#3fb39c] text-[#3fb39c] text-3xl">
             <i className={`fa-solid ${suspect.icon}`} />
           </span>
           <div>
-            <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
-              {suspect.name}
-            </div>
-            <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
-              {suspect.role}
-            </div>
+            <div className="font-serif text-4xl md:text-5xl leading-tight text-text">{suspect.name}</div>
+            <div className="text-[12px] tracking-wider uppercase text-muted mt-1">{suspect.role}</div>
           </div>
         </div>
 
-        {/* Штамп «ОПРАВДАН» — справа от имени, крупный, высоко */}
         <div className="origin-center pointer-events-none -mt-6 md:-mt-10">
           <div
             style={{
               transform: `rotate(8deg) scale(${stamped ? 1 : 2.2})`,
               opacity: stamped ? 0.9 : 0,
-              transition:
-                'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
+              transition: 'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
               animation: stamped ? 'stampShakeGreen 0.4s ease-out' : 'none'
             }}
           >
             <div
               className="border-[6px] border-[#3fb39c] px-8 py-3 rounded-md"
-              style={{
-                boxShadow: '0 0 40px rgba(63, 179, 156, 0.4)',
-                background: 'rgba(63, 179, 156, 0.05)'
-              }}
+              style={{ boxShadow: '0 0 40px rgba(63, 179, 156, 0.4)', background: 'rgba(63, 179, 156, 0.05)' }}
             >
               <span
                 className="font-serif font-bold tracking-[0.15em] text-[#3fb39c] text-[clamp(28px,4vw,52px)] whitespace-nowrap"
@@ -1268,10 +1168,19 @@ function FinalVerdictCard({ suspect }: { suspect: any }) {
         </div>
       </div>
 
-      {/* Текст вердикта — во всю ширину, как было */}
-      <p className="text-[15px] text-muted leading-relaxed m-0">
-        {suspect.verdict || ''}
-      </p>
+      <p className="text-[15px] text-muted leading-relaxed m-0">{suspect.verdict || ''}</p>
+
+      {suspect.verdictAudioUrl && (
+        <div className="mt-6 flex gap-3 flex-wrap">
+          <button
+            onClick={audio.toggle}
+            className="px-4 py-2 rounded-lg border border-line bg-panel hover:bg-panel2 text-sm flex items-center gap-2"
+          >
+            <i className={`fa-solid ${audio.playing ? 'fa-pause' : 'fa-volume-high'}`} />
+            {audio.playing ? 'Пауза' : 'Озвучить вердикт'}
+          </button>
+        </div>
+      )}
 
       <style>{`
         @keyframes stampShakeGreen {
@@ -1287,27 +1196,107 @@ function FinalVerdictCard({ suspect }: { suspect: any }) {
 }
 
 // ============================================================
+// KILLER CARD (красный штамп + озвучка)
+// ============================================================
+
+function KillerCard({ suspect }: { suspect: any }) {
+  const [stamped, setStamped] = useState(false);
+  const audio = useAudioButton(suspect.verdictAudioUrl);
+
+  useEffect(() => {
+    const t = setTimeout(() => setStamped(true), 500);
+    return () => clearTimeout(t);
+  }, [suspect.id]);
+
+  return (
+    <div className="relative bg-panel border border-[#e0603a] rounded-2xl p-8 md:p-12 mb-10 overflow-hidden">
+      <div
+        className="absolute inset-0 pointer-events-none rounded-2xl transition-opacity duration-300"
+        style={{
+          boxShadow: stamped ? '0 0 80px -10px rgba(224, 96, 58, 0.8) inset' : 'none',
+          opacity: stamped ? 1 : 0
+        }}
+      />
+      <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#e0603a] mb-4">
+        Убийца раскрыт
+      </div>
+
+      <div className="flex items-start justify-between gap-5 flex-wrap mb-6 md:mb-8">
+        <div className="flex items-center gap-5 flex-wrap">
+          <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-[#e0603a] text-[#e0603a] text-3xl">
+            <i className={`fa-solid ${suspect.icon}`} />
+          </span>
+          <div>
+            <div className="font-serif text-4xl md:text-5xl leading-tight text-text">{suspect.name}</div>
+            <div className="text-[12px] tracking-wider uppercase text-muted mt-1">{suspect.role}</div>
+          </div>
+        </div>
+
+        <div className="origin-center pointer-events-none -mt-6 md:-mt-10">
+          <div
+            style={{
+              transform: `rotate(-8deg) scale(${stamped ? 1 : 2.2})`,
+              opacity: stamped ? 1 : 0,
+              transition: 'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
+              animation: stamped ? 'stampShakeKiller 0.4s ease-out' : 'none'
+            }}
+          >
+            <div
+              className="border-[6px] border-[#e0603a] px-8 py-3 rounded-md"
+              style={{ boxShadow: '0 0 50px rgba(224, 96, 58, 0.5)', background: 'rgba(224, 96, 58, 0.06)' }}
+            >
+              <span
+                className="font-serif font-bold tracking-[0.15em] text-[#e0603a] text-[clamp(28px,4vw,52px)] whitespace-nowrap"
+                style={{ textShadow: '0 0 24px rgba(224, 96, 58, 0.6)' }}
+              >
+                УБИЙЦА
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p className="text-[15px] text-muted leading-relaxed m-0">{suspect.description || ''}</p>
+
+      {suspect.verdictAudioUrl && (
+        <div className="mt-6 flex gap-3 flex-wrap">
+          <button
+            onClick={audio.toggle}
+            className="px-4 py-2 rounded-lg border border-[#e0603a] text-[#e0603a] text-sm flex items-center gap-2"
+          >
+            <i className={`fa-solid ${audio.playing ? 'fa-pause' : 'fa-volume-high'}`} />
+            {audio.playing ? 'Пауза' : 'Озвучить признание'}
+          </button>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes stampShakeKiller {
+          0%   { transform: rotate(-8deg) scale(1); }
+          20%  { transform: rotate(-11deg) scale(1); }
+          40%  { transform: rotate(-5deg) scale(1); }
+          60%  { transform: rotate(-9.5deg) scale(1); }
+          100% { transform: rotate(-8deg) scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ============================================================
 // RESULTS
 // ============================================================
 
-function Results({
-  result,
-  teams,
-  suspects,
-  advance,
-  round,
-  totalRounds,
-  busy
-}: any) {
+function Results({ result, suspects, advance, round, totalRounds, busy }: any) {
   const elimId = result?.eliminatedId;
   const safeSuspects = suspects || [];
   const elimSuspect = elimId ? safeSuspects.find((s: any) => s.id === elimId) : null;
   const isLast = round >= totalRounds;
 
-  const fmtScore = (n: number) => (n > 0 ? `+${n}` : `${n}`);
-
   if (isLast) {
-    const viktor = suspects.find((s: any) => s.id === 's5') || { id: 's5', name: 'Виктор', role: 'Бывший партнёр', icon: 'fa-briefcase', verdict: '' };
+    const viktor = suspects.find((s: any) => s.id === 's5') || {
+      id: 's5', name: 'Виктор', role: 'Бывший партнёр', icon: 'fa-briefcase', verdict: ''
+    };
     return (
       <div>
         <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-8">
@@ -1333,9 +1322,7 @@ function Results({
       <h2 className="font-serif text-[clamp(44px,6vw,72px)] leading-none text-text font-semibold mb-10">
         Итоги раунда {round}
       </h2>
-
       {elimSuspect && <EliminatedCard suspect={elimSuspect} />}
-
       <button
         onClick={advance}
         disabled={busy}
@@ -1348,128 +1335,11 @@ function Results({
 }
 
 // ============================================================
-// KILLER CARD — карточка убийцы с красным штампом
-// ============================================================
-
-function KillerCard({ suspect }: { suspect: any }) {
-  const [stamped, setStamped] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setStamped(true);
-      try {
-        const Ctx =
-          (window as any).AudioContext || (window as any).webkitAudioContext;
-        if (!Ctx) return;
-        const ctx = new Ctx();
-        const now = ctx.currentTime;
-        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.25, ctx.sampleRate);
-        const data = buf.getChannelData(0);
-        for (let i = 0; i < data.length; i++) {
-          data[i] =
-            (Math.random() * 2 - 1) *
-            Math.exp(-i / (ctx.sampleRate * 0.05));
-        }
-        const src = ctx.createBufferSource();
-        src.buffer = buf;
-        const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
-        const lp = ctx.createBiquadFilter();
-        lp.type = 'lowpass';
-        lp.frequency.value = 600;
-        src.connect(lp).connect(gain).connect(ctx.destination);
-        src.start();
-      } catch {}
-    }, 500);
-
-    return () => clearTimeout(t);
-  }, [suspect.id]);
-
-  return (
-    <div className="relative bg-panel border border-[#e0603a] rounded-2xl p-8 md:p-12 mb-10 overflow-hidden">
-      {/* Красная вспышка по краю */}
-      <div
-        className="absolute inset-0 pointer-events-none rounded-2xl transition-opacity duration-300"
-        style={{
-          boxShadow: stamped
-            ? '0 0 80px -10px rgba(224, 96, 58, 0.8) inset'
-            : 'none',
-          opacity: stamped ? 1 : 0
-        }}
-      />
-
-      <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#e0603a] mb-4">
-        Убийца раскрыт
-      </div>
-
-      <div className="flex items-start justify-between gap-5 flex-wrap mb-6 md:mb-8">
-        <div className="flex items-center gap-5 flex-wrap">
-          <span className="w-20 h-20 rounded-full grid place-items-center bg-panel2 border border-[#e0603a] text-[#e0603a] text-3xl">
-            <i className={`fa-solid ${suspect.icon}`} />
-          </span>
-          <div>
-            <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
-              {suspect.name}
-            </div>
-            <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
-              {suspect.role}
-            </div>
-          </div>
-        </div>
-
-        {/* Штамп «УБИЙЦА» — красный */}
-        <div className="origin-center pointer-events-none -mt-6 md:-mt-10">
-          <div
-            style={{
-              transform: `rotate(-8deg) scale(${stamped ? 1 : 2.2})`,
-              opacity: stamped ? 1 : 0,
-              transition:
-                'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
-              animation: stamped ? 'stampShakeKiller 0.4s ease-out' : 'none'
-            }}
-          >
-            <div
-              className="border-[6px] border-[#e0603a] px-8 py-3 rounded-md"
-              style={{
-                boxShadow: '0 0 50px rgba(224, 96, 58, 0.5)',
-                background: 'rgba(224, 96, 58, 0.06)'
-              }}
-            >
-              <span
-                className="font-serif font-bold tracking-[0.15em] text-[#e0603a] text-[clamp(28px,4vw,52px)] whitespace-nowrap"
-                style={{ textShadow: '0 0 24px rgba(224, 96, 58, 0.6)' }}
-              >
-                УБИЙЦА
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <p className="text-[15px] text-muted leading-relaxed m-0">
-        {suspect.description || ''}
-      </p>
-
-      <style>{`
-        @keyframes stampShakeKiller {
-          0%   { transform: rotate(-8deg) scale(1); }
-          20%  { transform: rotate(-11deg) scale(1); }
-          40%  { transform: rotate(-5deg) scale(1); }
-          60%  { transform: rotate(-9.5deg) scale(1); }
-          100% { transform: rotate(-8deg) scale(1); }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// ============================================================
 // END
 // ============================================================
 
 function EndView({ state, onReset, speech, onShowResults, code, sock, trace }: any) {
-  const solution = state.solution;
+  const solutionAudio = useAudioButton(state.solutionAudioUrl);
   const killer = (state.fullSuspects || []).find((s: any) => s.isGuilty);
 
   return (
@@ -1477,20 +1347,32 @@ function EndView({ state, onReset, speech, onShowResults, code, sock, trace }: a
       <h1 className="font-serif text-[clamp(44px,5.5vw,72px)] leading-none text-text font-semibold mb-6">
         Разгадка
       </h1>
-      
+
       {killer && <KillerCard suspect={killer} />}
 
       <div className="bg-panel border-l-2 border-accent rounded-2xl p-6 mb-8 max-w-[820px] text-[17px] leading-relaxed text-text">
-        {solution}
+        {state.solution}
       </div>
+
+      {state.solutionAudioUrl && (
+        <div className="mb-6 flex gap-3 flex-wrap">
+          <button
+            onClick={solutionAudio.toggle}
+            className="px-4 py-2 rounded-lg border border-line bg-panel hover:bg-panel2 text-sm flex items-center gap-2"
+          >
+            <i className={`fa-solid ${solutionAudio.playing ? 'fa-pause' : 'fa-volume-high'}`} />
+            {solutionAudio.playing ? 'Пауза' : 'Озвучить разгадку'}
+          </button>
+        </div>
+      )}
 
       {speech.supported && (
         <div className="mb-8 flex gap-3 flex-wrap">
           <button
-            onClick={() => speech.speak(solution, { rate: 0.92, pitch: 1.05 })}
+            onClick={() => speech.speak(state.solution, { rate: 0.92, pitch: 1.05 })}
             className="px-4 py-2 rounded-lg border border-line bg-panel hover:bg-panel2 text-sm"
           >
-            🔊 Озвучить разгадку
+            🔊 Озвучить (синтез)
           </button>
           {speech.speaking && (
             <button
@@ -1522,9 +1404,7 @@ function EndView({ state, onReset, speech, onShowResults, code, sock, trace }: a
         </button>
         <button
           onClick={async () => {
-            try {
-              await fetch('/api/logout', { method: 'POST' });
-            } catch {}
+            try { await fetch('/api/logout', { method: 'POST' }); } catch {}
             trace?.('host_close_click', {});
             sock.current.emit('host:close', { code });
             window.location.href = '/host';
@@ -1554,9 +1434,7 @@ function AccuseModal({
   const [pick, setPick] = useState<string | null>(null);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
@@ -1564,9 +1442,7 @@ function AccuseModal({
   return (
     <div
       className="fixed inset-0 z-30 bg-[rgba(8,4,3,.85)] grid place-items-center p-5 overflow-y-auto"
-      onClick={e => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="relative max-w-[760px] w-full bg-[#1a110d] border border-line rounded-[22px] p-8 md:p-9 my-8">
         <button
@@ -1575,19 +1451,15 @@ function AccuseModal({
         >
           <i className="fa-solid fa-xmark text-sm" />
         </button>
-
         <div className="text-[11px] font-bold tracking-[.2em] uppercase text-accent mb-2">
           Обвинение только одно
         </div>
-        <h2 className="font-serif text-4xl text-text font-semibold mb-3 m-0">
-          Кто убийца?
-        </h2>
+        <h2 className="font-serif text-4xl text-text font-semibold mb-3 m-0">Кто убийца?</h2>
         <p className="text-[14px] text-[#b9a898] m-0 mb-6">
           {pick
             ? `Вы обвиняете: ${suspects.find(s => s.id === pick)?.name}. Уверены?`
             : 'Выберите подозреваемого, которого обвиняете. Второго шанса не будет.'}
         </p>
-
         <div className="grid md:grid-cols-2 gap-3 mb-6">
           {suspects.map((s: any) => (
             <button
@@ -1595,9 +1467,7 @@ function AccuseModal({
               onClick={() => setPick(s.id)}
               className={
                 'text-left w-full p-4 rounded-2xl border bg-panel flex gap-3.5 transition ' +
-                (pick === s.id
-                  ? 'border-accent bg-panel2'
-                  : 'border-line hover:border-accent/60')
+                (pick === s.id ? 'border-accent bg-panel2' : 'border-line hover:border-accent/60')
               }
             >
               <span className="flex-none w-11 h-11 rounded-full grid place-items-center font-serif text-lg font-bold text-[#1a0f0a] bg-gradient-to-br from-accent to-[#f3e6cf]">
@@ -1607,18 +1477,13 @@ function AccuseModal({
                 <div className="text-[15px] text-text font-bold m-0">{s.name}</div>
                 <div className="text-[12.5px] text-accent font-semibold mb-2">{s.role}</div>
                 <div className="text-[12.5px] text-[#c3b2a2] leading-snug">
-                  <div>
-                    <b className="text-[#e6d6c0]">Мотив:</b> {s.motive}
-                  </div>
-                  <div>
-                    <b className="text-[#e6d6c0]">Алиби:</b> {s.alibi}
-                  </div>
+                  <div><b className="text-[#e6d6c0]">Мотив:</b> {s.motive}</div>
+                  <div><b className="text-[#e6d6c0]">Алиби:</b> {s.alibi}</div>
                 </div>
               </div>
             </button>
           ))}
         </div>
-
         <div className="flex gap-3 flex-wrap">
           <button
             onClick={onConfirm}
@@ -1650,7 +1515,7 @@ function VotingCountdown() {
 }
 
 // ============================================================
-// RESULTS FINAL (итоговая таблица)
+// RESULTS FINAL
 // ============================================================
 
 function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
@@ -1680,7 +1545,6 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
           .
         </p>
       </div>
-
       <div className="bg-panel border border-line rounded-2xl overflow-x-auto mb-10">
         <table className="w-full text-sm min-w-[560px]">
           <thead>
@@ -1716,11 +1580,7 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
                       key={ri}
                       className={
                         'p-4 text-right tabular-nums ' +
-                        (rs[ri] < 0
-                          ? 'text-accent'
-                          : rs[ri] > 0
-                          ? 'text-green-400'
-                          : 'text-muted')
+                        (rs[ri] < 0 ? 'text-accent' : rs[ri] > 0 ? 'text-green-400' : 'text-muted')
                       }
                     >
                       {rs[ri] === 0 ? '—' : fmtScore(rs[ri])}
@@ -1735,7 +1595,6 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
           </tbody>
         </table>
       </div>
-
       <div className="flex gap-3 flex-wrap">
         <button
           onClick={onReset}
@@ -1745,9 +1604,7 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
         </button>
         <button
           onClick={async () => {
-            try {
-              await fetch('/api/logout', { method: 'POST' });
-            } catch {}
+            try { await fetch('/api/logout', { method: 'POST' }); } catch {}
             trace?.('host_close_click', {});
             sock.current.emit('host:close', { code });
             window.location.href = '/host';
