@@ -1059,7 +1059,6 @@ function EliminatedCard({ suspect }: { suspect: any }) {
   const [stamped, setStamped] = useState(false);
 
   useEffect(() => {
-    // Звук печати (если браузер разрешит)
     const t = setTimeout(() => {
       setStamped(true);
       try {
@@ -1122,47 +1121,47 @@ function EliminatedCard({ suspect }: { suspect: any }) {
         </div>
       </div>
 
-      <p className="text-[15px] text-muted leading-relaxed m-0">
+      <p className="text-[15px] text-muted leading-relaxed m-0 max-w-[60%] md:max-w-[65%]">
         {suspect.verdict ||
           'Большинство команд назвало этого подозреваемого — но это не убийца. Он выбывает из расследования.'}
       </p>
 
-      {/* Штамп «НЕ УБИЙЦА» */}
-      <div
-        className="absolute top-1/2 left-1/2 pointer-events-none"
-        style={{
-          transform: `translate(-50%, -50%) rotate(-12deg) scale(${
-            stamped ? 1 : 2.2
-          })`,
-          opacity: stamped ? 0.85 : 0,
-          transition:
-            'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
-          animation: stamped ? 'stampShake 0.4s ease-out' : 'none'
-        }}
-      >
+      {/* Штамп «НЕ УБИЙЦА» — правый край */}
+      <div className="absolute top-1/2 right-4 md:right-10 -translate-y-1/2 pointer-events-none">
         <div
-          className="border-[6px] border-[#c0563a] px-8 py-3 rounded-md"
+          className="origin-center"
           style={{
-            boxShadow: '0 0 40px rgba(192, 86, 58, 0.4)',
-            background: 'rgba(192, 86, 58, 0.05)'
+            transform: `rotate(-12deg) scale(${stamped ? 1 : 2.2})`,
+            opacity: stamped ? 0.85 : 0,
+            transition:
+              'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
+            animation: stamped ? 'stampShake 0.4s ease-out' : 'none'
           }}
         >
-          <span
-            className="font-serif font-bold tracking-[0.15em] text-[#c0563a] text-[clamp(28px,4vw,52px)] whitespace-nowrap"
-            style={{ textShadow: '0 0 20px rgba(192, 86, 58, 0.5)' }}
+          <div
+            className="border-[6px] border-[#c0563a] px-8 py-3 rounded-md"
+            style={{
+              boxShadow: '0 0 40px rgba(192, 86, 58, 0.4)',
+              background: 'rgba(192, 86, 58, 0.05)'
+            }}
           >
-            НЕ УБИЙЦА
-          </span>
+            <span
+              className="font-serif font-bold tracking-[0.15em] text-[#c0563a] text-[clamp(24px,3.2vw,44px)] whitespace-nowrap"
+              style={{ textShadow: '0 0 20px rgba(192, 86, 58, 0.5)' }}
+            >
+              НЕ УБИЙЦА
+            </span>
+          </div>
         </div>
       </div>
 
       <style>{`
         @keyframes stampShake {
-          0% { transform: translate(-50%, -50%) rotate(-12deg) scale(1); }
-          20% { transform: translate(-49%, -51%) rotate(-13deg) scale(1); }
-          40% { transform: translate(-51%, -49%) rotate(-11deg) scale(1); }
-          60% { transform: translate(-49.5%, -50%) rotate(-12.5deg) scale(1); }
-          100% { transform: translate(-50%, -50%) rotate(-12deg) scale(1); }
+          0%   { transform: rotate(-12deg) scale(1); }
+          20%  { transform: rotate(-13deg) scale(1); }
+          40%  { transform: rotate(-11deg) scale(1); }
+          60%  { transform: rotate(-12.5deg) scale(1); }
+          100% { transform: rotate(-12deg) scale(1); }
         }
       `}</style>
     </div>
@@ -1241,41 +1240,42 @@ function FinalVerdictCard({ suspect }: { suspect: any }) {
         {suspect.verdict || ''}
       </p>
 
-      <div
-        className="absolute top-1/2 left-1/2 pointer-events-none"
-        style={{
-          transform: `translate(-50%, -50%) rotate(8deg) scale(${
-            stamped ? 1 : 2.2
-          })`,
-          opacity: stamped ? 0.85 : 0,
-          transition:
-            'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
-          animation: stamped ? 'stampShakeGreen 0.4s ease-out' : 'none'
-        }}
-      >
+      {/* Штамп «ОПРАВДАН» — правый край */}
+      <div className="absolute top-1/2 right-4 md:right-10 -translate-y-1/2 pointer-events-none">
         <div
-          className="border-[6px] border-[#3fb39c] px-8 py-3 rounded-md"
+          className="origin-center"
           style={{
-            boxShadow: '0 0 40px rgba(63, 179, 156, 0.4)',
-            background: 'rgba(63, 179, 156, 0.05)'
+            transform: `rotate(8deg) scale(${stamped ? 1 : 2.2})`,
+            opacity: stamped ? 0.85 : 0,
+            transition:
+              'transform 0.35s cubic-bezier(.2,1.6,.4,1), opacity 0.2s ease-out',
+            animation: stamped ? 'stampShakeGreen 0.4s ease-out' : 'none'
           }}
         >
-          <span
-            className="font-serif font-bold tracking-[0.15em] text-[#3fb39c] text-[clamp(28px,4vw,52px)] whitespace-nowrap"
-            style={{ textShadow: '0 0 20px rgba(63, 179, 156, 0.5)' }}
+          <div
+            className="border-[6px] border-[#3fb39c] px-8 py-3 rounded-md"
+            style={{
+              boxShadow: '0 0 40px rgba(63, 179, 156, 0.4)',
+              background: 'rgba(63, 179, 156, 0.05)'
+            }}
           >
-            ОПРАВДАН
-          </span>
+            <span
+              className="font-serif font-bold tracking-[0.15em] text-[#3fb39c] text-[clamp(24px,3.2vw,44px)] whitespace-nowrap"
+              style={{ textShadow: '0 0 20px rgba(63, 179, 156, 0.5)' }}
+            >
+              ОПРАВДАН
+            </span>
+          </div>
         </div>
       </div>
 
       <style>{`
         @keyframes stampShakeGreen {
-          0% { transform: translate(-50%, -50%) rotate(8deg) scale(1); }
-          20% { transform: translate(-49%, -51%) rotate(7deg) scale(1); }
-          40% { transform: translate(-51%, -49%) rotate(9deg) scale(1); }
-          60% { transform: translate(-49.5%, -50%) rotate(7.5deg) scale(1); }
-          100% { transform: translate(-50%, -50%) rotate(8deg) scale(1); }
+          0%   { transform: rotate(8deg) scale(1); }
+          20%  { transform: rotate(7deg) scale(1); }
+          40%  { transform: rotate(9deg) scale(1); }
+          60%  { transform: rotate(7.5deg) scale(1); }
+          100% { transform: rotate(8deg) scale(1); }
         }
       `}</style>
     </div>
