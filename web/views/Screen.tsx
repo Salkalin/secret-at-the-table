@@ -41,25 +41,35 @@ export default function Screen() {
   const sock = useRef(getSocket());
   const speech = useSpeech();
   const [bgUrl, setBgUrl] = useState<string>('');
+  const joinedRef = useRef(false); // защита от дублирующегося screen:join (StrictMode)
+
+  // Хелпер для клиентских трейсов
+  const trace = (event: string, data?: any) => {
+    if (!code) return;
+    sock.current.emit('client:trace', { code, event, data });
+  };
 
   useEffect(() => {
     if (!state) return;
     const sc = state.scenario;
     const ch = state.chapter;
-    // Фон только для intro и story
     const showBg = ['intro', 'story'].includes(state.phase);
-    const url = showBg
-      ? ch?.bg || sc?.bg || ''
-      : '';
+    const url = showBg ? ch?.bg || sc?.bg || '' : '';
     setBgUrl(url);
   }, [state?.phase, state?.round, state?.chapter?.bg, state?.scenario?.bg]);
 
   useEffect(() => {
     const s = sock.current;
-    s.emit('screen:join', { code }, (res: any) => {
-      if (res?.state) setState(res.state);
-      if (res?.error) alert('Сессия не найдена');
-    });
+    if (!joinedRef.current) {
+      joinedRef.current = true;
+      s.emit('screen:join', { code }, (res: any) => {
+        if (res?.state) setState(res.state);
+        if (res?.error) {
+          trace('screen_join_failed', { error: res.error });
+          alert('Сессия не найдена');
+        }
+      });
+    }
     const onState = (st: any) => setState(st);
     s.on('state', onState);
     return () => {
@@ -80,24 +90,31 @@ export default function Screen() {
   const advance = () => {
     if (busy) return;
     setBusy(true);
+    trace('host_advance_click', { phase: state?.phase, round: state?.round });
     sock.current.emit('host:advance', { code }, () => setBusy(false));
   };
 
   const goBack = () => {
     if (busy) return;
     setBusy(true);
+    trace('host_prev_click', { phase: state?.phase, round: state?.round });
     sock.current.emit('host:prev', { code }, (res: any) => {
       setBusy(false);
-      if (res?.error === 'no_prev') alert('Назад уже нельзя');
+      if (res?.error === 'no_prev') {
+        trace('host_prev_blocked', {});
+        alert('Назад уже нельзя');
+      }
     });
   };
   const togglePause = () => {
+    trace('host_toggle_pause_click', { phase: state?.phase, round: state?.round });
     sock.current.emit('host:toggle-pause', { code }, () => {});
   };
 
   const reset = () => {
     if (busy) return;
     setBusy(true);
+    trace('host_reset_click', { phase: state?.phase });
     sock.current.emit('host:reset', { code }, (res: any) => {
       setBusy(false);
       if (res?.error) alert('Ошибка: ' + res.error);
@@ -125,7 +142,7 @@ export default function Screen() {
   const aliveSuspects = scenario.suspects.filter((s: any) => !eliminated.includes(s.id));
 
   return (
-        <div className="min-h-screen p-6 md:p-8 max-w-[1200px] mx-auto">
+    <div className="min-h-screen p-6 md:p-8 max-w-[1200px] mx-auto">
       {bgUrl && (
         <div
           className="fixed inset-0 -z-20 transition-opacity duration-700"
@@ -133,14 +150,12 @@ export default function Screen() {
             backgroundImage: `url('${bgUrl}')`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            filter: 'brightness(0.35) saturate(0.75)'
+            filter: 'brightness(0.25) saturate(0.6)'
           }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-[rgba(13,8,7,0.6)] via-[rgba(13,8,7,0.3)] to-[rgba(13,8,7,0.9)]" />
-        </div>
-      )
-      }      
-            {/* SVG-сцены по фазам */}
+        />
+      )}
+
+      {/* SVG-сцены по фазам */}
       {phase === 'intro' && <IntroScene />}
       {phase === 'story' && round === 1 && <Chapter1Scene />}
       {phase === 'story' && round === 2 && <Chapter2Scene />}
@@ -150,7 +165,7 @@ export default function Screen() {
       {phase === 'results' && round === 2 && <DmitryScene />}
       {phase === 'results' && round === 3 && <MariaScene />}
       {phase === 'results' && round >= 4 && <ViktorScene />}
-      {phase === 'end' && <ElenaScene />}    
+      {phase === 'end' && <ElenaScene />}
 
       <Header
         phase={phase}
@@ -171,6 +186,7 @@ export default function Screen() {
           goBack={goBack}
           busy={busy}
           sock={sock}
+          trace={trace}
         />
       )}
 
@@ -296,13 +312,19 @@ export default function Screen() {
           onShowResults={advance}
           code={code}
           sock={sock}
+          trace={trace}
         />
       )}
 
       {phase === 'results-final' && (
-        <ResultsFinal teams={teams} onReset={reset} code={code} sock={sock} />
+        <ResultsFinal
+          teams={teams}
+          onReset={reset}
+          code={code}
+          sock={sock}
+          trace={trace}
+        />
       )}
-
 
       {accuseOpen && phase === 'discussion' && (
         <AccuseModal
@@ -389,7 +411,7 @@ function Header({
 // LOBBY
 // ============================================================
 
-function Lobby({ code, qr, teams, advance, goBack, busy, sock }: any) {
+function Lobby({ code, qr, teams, advance, goBack, busy, sock, trace }: any) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -447,6 +469,7 @@ function Lobby({ code, qr, teams, advance, goBack, busy, sock }: any) {
               try {
                 await fetch('/api/logout', { method: 'POST' });
               } catch {}
+              trace('host_close_click', {});
               sock.current.emit('host:close', { code });
               window.location.href = '/host';
             }}
@@ -454,7 +477,6 @@ function Lobby({ code, qr, teams, advance, goBack, busy, sock }: any) {
           >
             ← К выбору дела
           </button>
-
         </div>
       </div>
 
@@ -512,20 +534,20 @@ function Lobby({ code, qr, teams, advance, goBack, busy, sock }: any) {
                       {t.name}
                     </div>
                   </td>
-               <td className="py-3.5 px-2 text-text">{t.captainName || '—'}</td>
-              <td className="py-3.5 px-2">
-                {now - (t.joinedAt || 0) < 2500 ? (
-                  <span className="inline-flex items-center gap-2 text-xs font-semibold px-2.5 py-1 rounded-full border border-line text-[#d9c49a]">
-                    <i className="fa-solid fa-spinner fa-spin" />
-                    Входит
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-2 text-xs font-semibold px-2.5 py-1 rounded-full border border-green-400/35 text-green-300">
-                    <i className="fa-solid fa-circle-check" />
-                    Готов
-                  </span>
-                )}
-              </td>
+                  <td className="py-3.5 px-2 text-text">{t.captainName || '—'}</td>
+                  <td className="py-3.5 px-2">
+                    {now - (t.joinedAt || 0) < 2500 ? (
+                      <span className="inline-flex items-center gap-2 text-xs font-semibold px-2.5 py-1 rounded-full border border-line text-[#d9c49a]">
+                        <i className="fa-solid fa-spinner fa-spin" />
+                        Входит
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-2 text-xs font-semibold px-2.5 py-1 rounded-full border border-green-400/35 text-green-300">
+                        <i className="fa-solid fa-circle-check" />
+                        Готов
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -614,7 +636,6 @@ function Intro({ scenario, advance, goBack, busy }: any) {
             </li>
           ))}
         </ol>
-
       </div>
     </div>
   );
@@ -761,7 +782,6 @@ function Discussion({
   const running = left > 0 && !!roundStartedAt;
 
   const allClues = scenario.clues || [];
-  // На 4-м раунде главы нет — показываем все улики с прошлых раундов
   const roundClues =
     round >= 4
       ? allClues.map((c: any, i: number) => ({ c, i }))
@@ -779,6 +799,7 @@ function Discussion({
           .filter(
             (x: any) => x.c.round < round && revealedClueIndices.includes(x.i)
           );
+
   return (
     <div>
       <div
@@ -833,29 +854,29 @@ function Discussion({
             style={{ width: `${(elapsedCapped / duration) * 100}%` }}
           />
           {round < 4 && (
-          <div className="absolute inset-0">
-            {clueTimesSec.map((t: number, i: number) => (
-              <span
-                key={i}
-                className={
-                  'absolute top-1/2 w-[11px] h-[11px] -mt-[5.5px] -ml-[5.5px] rounded-full border-1.5 transition ' +
-                  (elapsedCapped >= t
-                    ? 'bg-accent border-accent'
-                    : 'bg-[#1a110d] border-line')
-                }
-                style={{ left: `${(t / duration) * 100}%` }}
-              >
-                <em
+            <div className="absolute inset-0">
+              {clueTimesSec.map((t: number, i: number) => (
+                <span
+                  key={i}
                   className={
-                    'absolute top-4 left-1/2 -translate-x-1/2 not-italic font-mono text-[10.5px] whitespace-nowrap ' +
-                    (elapsed >= t ? 'text-text' : 'text-muted')
+                    'absolute top-1/2 w-[11px] h-[11px] -mt-[5.5px] -ml-[5.5px] rounded-full border-1.5 transition ' +
+                    (elapsedCapped >= t
+                      ? 'bg-accent border-accent'
+                      : 'bg-[#1a110d] border-line')
                   }
+                  style={{ left: `${(t / duration) * 100}%` }}
                 >
-                  {fmt(t)}
-                </em>
-              </span>
-            ))}
-          </div>
+                  <em
+                    className={
+                      'absolute top-4 left-1/2 -translate-x-1/2 not-italic font-mono text-[10.5px] whitespace-nowrap ' +
+                      (elapsed >= t ? 'text-text' : 'text-muted')
+                    }
+                  >
+                    {fmt(t)}
+                  </em>
+                </span>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -969,7 +990,7 @@ function Discussion({
 }
 
 // ============================================================
-// VOTING (фаза голосования — только заглушка с инструкцией)
+// VOTING (заглушка с инструкцией)
 // ============================================================
 
 function Voting({ scenario, aliveSuspects, advance, goBack, busy }: any) {
@@ -1050,9 +1071,6 @@ function Results({
   const elimSuspect = elimId ? safeSuspects.find((s: any) => s.id === elimId) : null;
   const isLast = round >= totalRounds;
 
-  const fmtScore = (n: number) => (n > 0 ? `+${n}` : `${n}`);
-
-  // ===== Последний раунд — турнирная таблица =====
   if (isLast) {
     return (
       <div>
@@ -1093,7 +1111,6 @@ function Results({
     );
   }
 
-  // ===== Обычный раунд — как было =====
   return (
     <div>
       <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-accent mb-3">
@@ -1103,7 +1120,7 @@ function Results({
         Итоги раунда {round}
       </h2>
 
-            {elimSuspect && (
+      {elimSuspect && (
         <div className="bg-panel border border-line rounded-2xl p-8 md:p-12 mb-10">
           <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-accent mb-4">
             Вердикт следствия
@@ -1143,15 +1160,9 @@ function Results({
 // END (разгадка)
 // ============================================================
 
-function EndView({ state, onReset, speech, onShowResults, code, sock }: any) {
+function EndView({ state, onReset, speech, onShowResults, code, sock, trace }: any) {
   const solution = state.solution;
-  const teams = state.teams || [];
-  const sorted = [...teams].sort((a: any, b: any) => b.score - a.score);
-  const best = sorted[0];
   const killer = (state.fullSuspects || []).find((s: any) => s.isGuilty);
-  const lastResult = state.lastResult;
-  const someoneRight =
-    lastResult && lastResult.correctTeamIds && lastResult.correctTeamIds.length > 0;
 
   return (
     <div>
@@ -1199,6 +1210,7 @@ function EndView({ state, onReset, speech, onShowResults, code, sock }: any) {
       <div className="flex gap-3 flex-wrap">
         <button
           onClick={() => {
+            trace?.('show_results_click', {});
             if (onShowResults) onShowResults();
           }}
           className="px-6 py-3.5 rounded-xl border border-accent text-accent font-bold text-[15px] inline-flex items-center gap-2.5 hover:bg-accent/10 transition"
@@ -1206,7 +1218,10 @@ function EndView({ state, onReset, speech, onShowResults, code, sock }: any) {
           <i className="fa-solid fa-trophy" />
           Показать итоги расследования
         </button>
-        <button onClick={onReset} className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90">
+        <button
+          onClick={onReset}
+          className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90"
+        >
           Сыграть это дело снова
         </button>
         <button
@@ -1214,6 +1229,7 @@ function EndView({ state, onReset, speech, onShowResults, code, sock }: any) {
             try {
               await fetch('/api/logout', { method: 'POST' });
             } catch {}
+            trace?.('host_close_click', {});
             sock.current.emit('host:close', { code });
             window.location.href = '/host';
           }}
@@ -1225,7 +1241,6 @@ function EndView({ state, onReset, speech, onShowResults, code, sock }: any) {
     </div>
   );
 }
-
 
 // ============================================================
 // ACCUSE MODAL (модалка обвинения)
@@ -1338,7 +1353,7 @@ function VotingCountdown() {
   return <span>0:{String(left).padStart(2, '0')}</span>;
 }
 
-function ResultsFinal({ teams, onReset, code, sock }: any) {
+function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
   const sorted = [...(teams || [])].sort((a: any, b: any) => b.score - a.score);
   const fmtScore = (n: number) => (n > 0 ? `+${n}` : `${n}`);
   return (
@@ -1396,7 +1411,10 @@ function ResultsFinal({ teams, onReset, code, sock }: any) {
       </div>
 
       <div className="flex gap-3 flex-wrap">
-        <button onClick={onReset} className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90">
+        <button
+          onClick={onReset}
+          className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90"
+        >
           Сыграть это дело снова
         </button>
         <button
@@ -1404,6 +1422,7 @@ function ResultsFinal({ teams, onReset, code, sock }: any) {
             try {
               await fetch('/api/logout', { method: 'POST' });
             } catch {}
+            trace?.('host_close_click', {});
             sock.current.emit('host:close', { code });
             window.location.href = '/host';
           }}
@@ -1415,4 +1434,3 @@ function ResultsFinal({ teams, onReset, code, sock }: any) {
     </div>
   );
 }
-

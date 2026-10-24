@@ -1,6 +1,7 @@
 import { Server } from 'socket.io';
 import { prisma } from './db.js';
 import * as E from './engine.js';
+import { log } from './routes.js';
 
 const sessions = new Map<string, E.GameState>();
 const clueTimers = new Map<string, NodeJS.Timeout>();
@@ -49,8 +50,7 @@ function startClueTimer(io: Server, code: string) {
       stopClueTimer(code);
       return;
     }
-    if (s.roundPausedAt) return; // на паузе улики не раскрываются
-    const pausedNow = s.roundPausedAt ? Date.now() - s.roundPausedAt : 0;
+    if (s.roundPausedAt) return;
     const elapsed = Math.floor(
       (Date.now() - s.roundStartedAt - (s.roundPausedTotalMs || 0)) / 1000
     );
@@ -70,15 +70,19 @@ function startClueTimer(io: Server, code: string) {
         changed = true;
       }
     }
-      if (changed) {
-        console.log(
-        '[clue-timer] revealed new clues for',
-        code,
-        'at elapsed',
-        elapsed,
-        'total',
-        ns.revealedClues.length
-      );
+    if (changed) {
+      const dbS = await prisma.gameSession.findUnique({ where: { code } });
+      if (dbS) {
+        await log({
+          sessionId: dbS.id, code, event: 'clue:auto-reveal', actor: 'timer',
+          payload: {
+            round: ns.round,
+            elapsedSec: elapsed,
+            totalRevealed: ns.revealedClues.length,
+            newRevealed: ns.revealedClues.filter((i: number) => !s.revealedClues.includes(i))
+          }
+        });
+      }
       sessions.set(code, ns);
       await persistState(code, ns);
       broadcastState(io, code, ns);
@@ -96,6 +100,20 @@ export function attachSocket(io: Server) {
       const s = sessions.get(code);
       if (!s) return cb?.({ error: 'not_found' });
       socket.join(`screen:${code}`);
+
+      const dbS = await prisma.gameSession.findUnique({ where: { code } });
+      if (dbS) {
+        await log({
+          sessionId: dbS.id, code, event: 'screen:join',
+          actor: socket.id,
+          payload: {
+            socketId: socket.id,
+            userAgent: (socket.handshake.headers['user-agent'] || '').slice(0, 120),
+            ip: socket.handshake.address
+          }
+        });
+      }
+
       cb?.({ state: E.publicState(s, { revealSolution: false }) });
     });
 
@@ -108,7 +126,6 @@ export function attachSocket(io: Server) {
       let teamId: string | null = null;
       let isCaptain = false;
 
-      // ---- ПЕРЕПОДКЛЮЧЕНИЕ К СУЩЕСТВУЮЩЕЙ КОМАНДЕ ----
       if (reconnectTeamId) {
         const existing = s.teams.find(t => t.id === reconnectTeamId);
         if (existing) {
@@ -117,13 +134,25 @@ export function attachSocket(io: Server) {
           if (isCaptain) existing.captainId = socket.id;
           socket.data = { code, teamId, isCaptain, nickname };
           socket.join(`play:${code}`);
+
+          const dbS = await prisma.gameSession.findUnique({ where: { code } });
+          if (dbS) {
+            await log({
+              sessionId: dbS.id, code, event: 'player:reconnect',
+              actor: nickname,
+              payload: {
+                teamId, isCaptain, socketId: socket.id,
+                userAgent: (socket.handshake.headers['user-agent'] || '').slice(0, 120)
+              }
+            });
+          }
+
           const pub = E.publicState(s, { revealSolution: false });
           io.to(`screen:${code}`).emit('state', pub);
           io.to(`play:${code}`).emit('state', pub);
           return cb?.({ state: pub, teamId, isCaptain });
         }
       }
-      // ---- ОБЫЧНОЕ ПОДКЛЮЧЕНИЕ ----
 
       if (wantCaptain) {
         const id = Math.random().toString(36).slice(2, 10);
@@ -148,6 +177,18 @@ export function attachSocket(io: Server) {
       socket.data = { code, teamId, isCaptain, nickname };
       socket.join(`play:${code}`);
 
+      const dbS = await prisma.gameSession.findUnique({ where: { code } });
+      if (dbS) {
+        await log({
+          sessionId: dbS.id, code, event: 'player:join',
+          actor: nickname,
+          payload: {
+            teamId, isCaptain, socketId: socket.id,
+            userAgent: (socket.handshake.headers['user-agent'] || '').slice(0, 120)
+          }
+        });
+      }
+
       const pub = E.publicState(s, { revealSolution: false });
       io.to(`screen:${code}`).emit('state', pub);
       io.to(`play:${code}`).emit('state', pub);
@@ -155,14 +196,29 @@ export function attachSocket(io: Server) {
     });
 
     socket.on('host:advance', async ({ code }: { code: string }, cb?: any) => {
-      console.log('[host:advance]', code);
       const s = sessions.get(code);
       if (!s) return cb?.({ error: 'not_found' });
       const ns = E.nextPhase(s);
       sessions.set(code, ns);
-
       stopClueTimer(code);
       if (ns.phase === 'discussion') startClueTimer(io, code);
+
+      const dbS = await prisma.gameSession.findUnique({ where: { code } });
+      if (dbS) {
+        await log({
+          sessionId: dbS.id, code, event: 'phase:advance', actor: 'host',
+          payload: {
+            from: s.phase,
+            to: ns.phase,
+            round: ns.round || s.round,
+            totalRounds: ns.totalRounds,
+            roundLabel: ns.round === 0 ? 'подготовка' : `раунд ${ns.round}`,
+            durationInPrevPhaseSec: ns.roundStartedAt && s.roundStartedAt
+              ? Math.round((Date.now() - s.roundStartedAt) / 1000)
+              : null
+          }
+        });
+      }
 
       await persistState(code, ns);
       broadcastState(io, code, ns);
@@ -170,15 +226,21 @@ export function attachSocket(io: Server) {
     });
 
     socket.on('host:prev', async ({ code }: { code: string }, cb?: any) => {
-      console.log('[host:prev]', code);
       const s = sessions.get(code);
       if (!s) return cb?.({ error: 'not_found' });
       const ns = E.prevPhase(s);
       if (ns === s) return cb?.({ error: 'no_prev' });
       sessions.set(code, ns);
-
       stopClueTimer(code);
       if (ns.phase === 'discussion') startClueTimer(io, code);
+
+      const dbS = await prisma.gameSession.findUnique({ where: { code } });
+      if (dbS) {
+        await log({
+          sessionId: dbS.id, code, event: 'phase:prev', actor: 'host',
+          payload: { from: s.phase, to: ns.phase, round: ns.round }
+        });
+      }
 
       await persistState(code, ns);
       broadcastState(io, code, ns);
@@ -186,46 +248,88 @@ export function attachSocket(io: Server) {
     });
 
     socket.on('host:reset', async ({ code }: { code: string }, cb?: any) => {
-      console.log('[host:reset]', code);
       const s = sessions.get(code);
       if (!s) return cb?.({ error: 'not_found' });
       const ns = E.resetSession(s);
       sessions.set(code, ns);
       stopClueTimer(code);
 
+      const dbS = await prisma.gameSession.findUnique({ where: { code } });
+      if (dbS) {
+        await log({
+          sessionId: dbS.id, code, event: 'session:reset', actor: 'host',
+          payload: {
+            prevPhase: s.phase,
+            prevRound: s.round,
+            teamsCount: s.teams.length
+          }
+        });
+      }
+
       await persistState(code, ns);
       broadcastState(io, code, ns);
-
-      // Обрубаем всех клиентов — они должны отсканировать QR заново
       io.to(`play:${code}`).emit('session:kill');
       io.in(`play:${code}`).disconnectSockets(true);
-
       cb?.({ state: E.publicState(ns, { revealSolution: false }) });
     });
+
     socket.on('host:toggle-pause', async ({ code }: { code: string }, cb?: any) => {
-      console.log('[host:toggle-pause]', code);
       const s = sessions.get(code);
       if (!s || s.phase !== 'discussion') return cb?.({ error: 'not_discussion' });
       const ns: any = { ...s };
       if (ns.roundPausedAt) {
+        const pauseDur = Math.round((Date.now() - ns.roundPausedAt) / 1000);
         ns.roundPausedTotalMs = (ns.roundPausedTotalMs || 0) + (Date.now() - ns.roundPausedAt);
         ns.roundPausedAt = null;
+
+        const dbS = await prisma.gameSession.findUnique({ where: { code } });
+        if (dbS) {
+          await log({
+            sessionId: dbS.id, code, event: 'timer:toggle-pause', actor: 'host',
+            payload: { paused: false, pausedDurationSec: pauseDur, round: ns.round }
+          });
+        }
       } else {
         ns.roundPausedAt = Date.now();
+        const dbS = await prisma.gameSession.findUnique({ where: { code } });
+        if (dbS) {
+          await log({
+            sessionId: dbS.id, code, event: 'timer:toggle-pause', actor: 'host',
+            payload: { paused: true, round: ns.round, elapsedSec: s.roundStartedAt ? Math.round((Date.now() - s.roundStartedAt) / 1000) : 0 }
+          });
+        }
       }
       sessions.set(code, ns);
+
       await persistState(code, ns);
       broadcastState(io, code, ns);
       cb?.({ ok: true, paused: !!ns.roundPausedAt });
     });
+
     socket.on('team:vote', ({ code, suspectId }: { code: string; suspectId: string }, cb?: any) => {
       const s = sessions.get(code);
       if (!s || s.phase !== 'voting') return cb?.({ error: 'not_voting' });
-      const { teamId, isCaptain } = (socket.data as any) || {};
+      const { teamId, isCaptain, nickname } = (socket.data as any) || {};
       if (!isCaptain) return cb?.({ error: 'not_captain' });
       const team = s.teams.find(t => t.id === teamId);
       if (!team) return cb?.({ error: 'no_team' });
       team.vote = suspectId;
+
+      const roundStartMs = s.roundStartedAt || 0;
+      const timeToVoteSec = roundStartMs ? Math.round((Date.now() - roundStartMs) / 1000) : null;
+
+      prisma.gameSession.findUnique({ where: { code } }).then(dbS => {
+        if (!dbS) return;
+        log({
+          sessionId: dbS.id, code, event: 'vote', actor: nickname ?? teamId,
+          payload: {
+            teamId, teamName: team.name, suspectId, round: s.round,
+            timeToVoteSec,
+            teamsVotedSoFar: s.teams.filter(t => t.vote).length,
+            teamsTotal: s.teams.length
+          }
+        });
+      });
 
       const pub = E.publicState(s, { revealSolution: false });
       io.to(`screen:${code}`).emit('state', pub);
@@ -233,13 +337,40 @@ export function attachSocket(io: Server) {
       cb?.({ ok: true });
     });
 
-      socket.on('host:close', async ({ code }: { code: string }, cb?: any) => {
-      console.log('[host:close]', code);
+    socket.on('client:trace', async (payload: { code: string; event: string; data?: any }) => {
+      const { code, event, data } = payload;
+      const dbS = await prisma.gameSession.findUnique({ where: { code } });
+      if (!dbS) return;
+      const { nickname, teamId, isCaptain } = (socket.data as any) || {};
+      await log({
+        sessionId: dbS.id, code, event: 'client:' + event,
+        actor: nickname ?? socket.id,
+        payload: { ...(data || {}), teamId, isCaptain, socketId: socket.id }
+      });
+    });
+
+    socket.on('host:close', async ({ code }: { code: string }, cb?: any) => {
       const s = sessions.get(code);
       if (!s) return cb?.({ error: 'not_found' });
       stopClueTimer(code);
       sessions.delete(code);
-      // Обрубаем клиентов
+
+      const dbS = await prisma.gameSession.findUnique({ where: { code } });
+      if (dbS) {
+        await log({
+          sessionId: dbS.id, code, event: 'session:close', actor: 'host',
+          payload: {
+            finalPhase: s.phase,
+            finalRound: s.round,
+            teamsCount: s.teams.length,
+            teams: s.teams.map(t => ({
+              name: t.name, score: t.score, roundScores: t.roundScores
+            })),
+            endedAt: new Date().toISOString()
+          }
+        });
+      }
+
       io.to(`play:${code}`).emit('session:kill');
       io.in(`play:${code}`).disconnectSockets(true);
       cb?.({ ok: true });

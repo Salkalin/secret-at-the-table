@@ -13,58 +13,82 @@ enum Role {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
+  id        String        @id @default(cuid())
+  email     String        @unique
   password  String
   role      Role
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  sessions  GameSession[] @relation("HostSessions")
+  active    Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  sessions  GameSession[]
 }
 
 model GameSession {
-  id        String   @id @default(cuid())
-  code      String   @unique
+  id        String    @id @default(cuid())
+  code      String    @unique
   hostId    String
-  host      User     @relation("HostSessions", fields: [hostId], references: [id])
   scenario  String
   state     Json
-  status    String   @default("lobby")
-  createdAt DateTime @default(now())
+  status    String    @default("lobby")
+  createdAt DateTime  @default(now())
   endedAt   DateTime?
-  players   Player[]
-  teams     Team[]
+
+  host    User     @relation(fields: [hostId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  players Player[]
+  teams   Team[]
+  logs    GameLog[]
+
   @@index([code])
 }
 
 model Player {
   id        String   @id @default(cuid())
   sessionId String
-  session   GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   nickname  String
   socketId  String?
   teamId    String?
-  team      Team?    @relation(fields: [teamId], references: [id])
   isCaptain Boolean  @default(false)
   joinedAt  DateTime @default(now())
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team    Team?       @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 }
 
 model Team {
   id        String   @id @default(cuid())
   sessionId String
-  session   GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   name      String
   score     Int      @default(0)
-  players   Player[]
-  votes     Vote[]
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  players Player[]
+  votes   Vote[]
 }
 
 model Vote {
   id        String   @id @default(cuid())
   teamId    String
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   round     Int
   suspectId String
   correct   Boolean?
   createdAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+model GameLog {
+  id        String   @id @default(cuid())
+  sessionId String
+  code      String
+  level     String   @default("info")
+  event     String
+  actor     String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([sessionId])
+  @@index([code])
+  @@index([createdAt])
+  @@index([event])
 }

@@ -188,17 +188,29 @@ export default function Play() {
   const [err, setErr] = useState('');
   const sock = useRef(getSocket());
   const speech = useSpeech();
+  const didReconnect = useRef(false);
+  const lastStateRef = useRef<any>(null);
+
+  // Хелпер для отправки клиентских трейсов
+  const trace = (event: string, data?: any) => {
+    if (!code) return;
+    sock.current.emit('client:trace', { code, event, data });
+  };
 
   useEffect(() => {
     const s = sock.current;
-    const onState = (st: any) => setState(st);
+    const onState = (st: any) => {
+      setState(st);
+      // Логируем смену фазы глазами игрока
+      if (lastStateRef.current?.phase !== st?.phase) {
+        trace('phase_changed', { from: lastStateRef.current?.phase, to: st?.phase, round: st?.round });
+      }
+      lastStateRef.current = st;
+    };
     s.on('state', onState);
 
     const onKill = () => {
-      setJoined(false);
-      setTeamId(null);
-      setState(null);
-      setIsCaptain(false);
+      setJoined(false); setTeamId(null); setState(null); setIsCaptain(false);
       if (code) localStorage.removeItem(`team_${code}`);
     };
     s.on('session:kill', onKill);
@@ -214,30 +226,31 @@ export default function Play() {
     if (saved) setNickname(saved);
   }, []);
 
-    // Авто-реконнект при перезагрузке, если уже заходили в эту сессию
   useEffect(() => {
-    if (joined || !code) return;
+    if (joined || !code || didReconnect.current) return;
+    didReconnect.current = true;
+
     const savedName = localStorage.getItem('detective_name');
     const savedTeam = localStorage.getItem(`team_${code}`);
     if (!savedName || !savedTeam) return;
 
     setNickname(savedName);
+    trace('auto_reconnect_attempt', { savedTeam });
 
     const t = setTimeout(() => {
       sock.current.emit(
         'player:join',
-        {
-          code,
-          nickname: savedName,
-          wantCaptain: false,
-          reconnectTeamId: savedTeam
-        },
+        { code, nickname: savedName, wantCaptain: false, reconnectTeamId: savedTeam },
         (res: any) => {
-          if (res?.error) return;
+          if (res?.error) {
+            trace('auto_reconnect_failed', { error: res.error });
+            return;
+          }
           setJoined(true);
           setIsCaptain(res.isCaptain);
           setTeamId(res.teamId);
           setState(res.state);
+          trace('auto_reconnect_success', { teamId: res.teamId });
         }
       );
     }, 400);
@@ -253,6 +266,7 @@ export default function Play() {
       return;
     }
     localStorage.setItem('detective_name', v);
+    trace('join_attempt', { wantCaptain });
 
     const stored = localStorage.getItem(`team_${code}`);
     const reconnectTeamId = stored || undefined;
@@ -262,9 +276,8 @@ export default function Play() {
       { code, nickname: v, wantCaptain, reconnectTeamId },
       (res: any) => {
         if (res?.error) {
-          setErr(
-            res.error === 'no_teams' ? 'Сначала создайте стол капитаном' : res.error
-          );
+          setErr(res.error === 'no_teams' ? 'Сначала создайте стол капитаном' : res.error);
+          trace('join_failed', { error: res.error });
           return;
         }
         setJoined(true);
@@ -272,29 +285,21 @@ export default function Play() {
         setTeamId(res.teamId);
         setState(res.state);
         if (res.teamId) localStorage.setItem(`team_${code}`, res.teamId);
+        trace('join_success', { teamId: res.teamId, isCaptain: res.isCaptain });
       }
     );
   }
 
   function vote(suspectId: string) {
+    trace('vote_attempt', { suspectId });
     sock.current.emit('team:vote', { code, suspectId }, (res: any) => {
-      if (res?.error) setErr(res.error);
+      if (res?.error) {
+        setErr(res.error);
+        trace('vote_failed', { error: res.error, suspectId });
+      } else {
+        trace('vote_success', { suspectId });
+      }
     });
-  }
-
-  // --- Экран входа ---
-  if (!joined) {
-    return (
-      <JoinScreen
-        code={code}
-        nickname={nickname}
-        setNickname={setNickname}
-        wantCaptain={wantCaptain}
-        setWantCaptain={setWantCaptain}
-        onJoin={join}
-        err={err}
-      />
-    );
   }
 
   if (!state) {

@@ -5,6 +5,33 @@ import * as E from './engine.js';
 import { setSession, getSession } from './socket.js';
 import { SCENARIOS } from './scenarios.js';
 
+type Level = 'info' | 'warn' | 'error';
+type LogArgs = {
+  sessionId: string;
+  code: string;
+  level?: Level;
+  event: string;
+  actor?: string | null;
+  payload?: any;
+};
+
+export async function log(args: LogArgs) {
+  try {
+    await prisma.gameLog.create({
+      data: {
+        sessionId: args.sessionId,
+        code: args.code,
+        level: args.level ?? 'info',
+        event: args.event,
+        actor: args.actor ?? null,
+        payload: args.payload ?? undefined
+      }
+    });
+  } catch (e) {
+    console.error('[log] failed', e);
+  }
+}
+
 export async function routes(app: FastifyInstance) {
   app.post('/api/login', async (req, reply) => {
     const { email, password } = (req.body as any) || {};
@@ -60,6 +87,104 @@ export async function routes(app: FastifyInstance) {
     return { ok: true, active: !u.active };
   });
 
+  // ---- Admin: monitoring ----
+  app.get('/api/admin/sessions', async (req, reply) => {
+    if (!A.requireRole(req, reply, 'ADMIN')) return;
+
+    const sessions = await prisma.gameSession.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: {
+        host: { select: { email: true } },
+        _count: { select: { players: true, logs: true } }
+      }
+    });
+
+    // Считаем метрики для каждой сессии — быстро, по логам в памяти
+    const result = await Promise.all(sessions.map(async s => {
+      const logs = await prisma.gameLog.findMany({
+        where: { sessionId: s.id },
+        select: { event: true, payload: true, createdAt: true },
+        orderBy: { createdAt: 'asc' }
+      });
+
+      // Средняя длительность обсуждения
+      const discLogs = logs.filter(l => l.event === 'phase:advance' && (l.payload as any)?.to === 'voting' && (l.payload as any)?.from === 'discussion');
+      const discDurations: number[] = [];
+      for (const dl of discLogs) {
+        const p = dl.payload as any;
+        if (p.durationInPrevPhaseSec && p.durationInPrevPhaseSec > 0) discDurations.push(p.durationInPrevPhaseSec);
+      }
+      const avgDiscussionSec = discDurations.length ? Math.round(discDurations.reduce((a, b) => a + b, 0) / discDurations.length) : null;
+
+      // Голоса: правильные/всего
+      const votes = logs.filter(l => l.event === 'vote');
+      const correctVotes = votes.filter(v => {
+        const p = v.payload as any;
+        // s3 — убийца в dinner, t4 — в theatre, v5 — в manor
+        const killerIds = new Set(['s3', 'v5', 't4']);
+        return killerIds.has(p?.suspectId);
+      }).length;
+
+      // Среднее время до голоса
+      const voteTimes = votes.map(v => (v.payload as any)?.timeToVoteSec).filter((n: number) => typeof n === 'number');
+      const avgVoteDelaySec = voteTimes.length ? Math.round(voteTimes.reduce((a, b) => a + b, 0) / voteTimes.length) : null;
+
+      // Средний размер команды
+      const teamJoins = logs.filter(l => l.event === 'player:join');
+      const playersCount = s._count.players;
+      const avgTeamSize = playersCount > 0 && s._count.logs > 0 ? Math.round(playersCount * 10) / 10 : null;
+
+      return {
+        id: s.id,
+        code: s.code,
+        scenario: s.scenario,
+        status: s.status,
+        createdAt: s.createdAt,
+        endedAt: s.endedAt,
+        hostEmail: s.host?.email ?? null,
+        playersCount,
+        logsCount: s._count.logs,
+        metrics: {
+          avgDiscussionSec,
+          correctVotes,
+          totalVotes: votes.length,
+          correctVotesPercent: votes.length ? Math.round((correctVotes / votes.length) * 100) : null,
+          avgVoteDelaySec,
+          avgTeamSize
+        }
+      };
+    }));
+
+    return result;
+  });
+
+  app.get('/api/admin/sessions/:code/logs', async (req, reply) => {
+    if (!A.requireRole(req, reply, 'ADMIN')) return;
+    const { code } = req.params as any;
+
+    const session = await prisma.gameSession.findUnique({ where: { code } });
+    if (!session) return reply.code(404).send({ error: 'not_found' });
+
+    const logs = await prisma.gameLog.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    return {
+      session: {
+        id: session.id,
+        code: session.code,
+        scenario: session.scenario,
+        status: session.status,
+        createdAt: session.createdAt,
+        endedAt: session.endedAt
+      },
+      logs
+    };
+  });
+
+  // ---- Host ----
   app.get('/api/host/sessions', async (req, reply) => {
     const auth = A.getAuthFromCookie(req);
     if (!auth) return reply.code(401).send({ error: 'unauthorized' });
@@ -86,6 +211,17 @@ export async function routes(app: FastifyInstance) {
       data: { code, hostId: auth.uid, scenario: sc.id, state: state as any, status: 'lobby' }
     });
     setSession(code, state);
+
+    await log({
+      sessionId: session.id, code, event: 'session:create', actor: auth.uid,
+      payload: {
+        scenarioId: sc.id, scenarioTitle: sc.title,
+        suspectsCount: sc.suspects.length,
+        cluesCount: sc.clues.length,
+        totalRounds: state.totalRounds
+      }
+    });
+
     return { code, id: session.id };
   });
 
