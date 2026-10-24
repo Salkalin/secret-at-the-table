@@ -189,14 +189,11 @@ export default function Play() {
   const lastStateRef = useRef<any>(null);
   const joinedRef = useRef(false);
 
-  // Хелпер для трейсов (безопасен, если code ещё нет)
   const trace = (event: string, data?: any) => {
     if (!code) return;
     try {
       sock.current.emit('client:trace', { code, event, data });
-    } catch {
-      // ignore
-    }
+    } catch {}
   };
 
   useEffect(() => {
@@ -234,7 +231,6 @@ export default function Play() {
     if (saved) setNickname(saved);
   }, []);
 
-  // Авто-реконнект (только один раз)
   useEffect(() => {
     if (joined || !code || didReconnect.current) return;
     didReconnect.current = true;
@@ -258,7 +254,6 @@ export default function Play() {
         (res: any) => {
           if (res?.error) {
             trace('auto_reconnect_failed', { error: res.error });
-            // Если команда не найдена, чистим localStorage
             if (res.error === 'not_found') localStorage.removeItem(`team_${code}`);
             return;
           }
@@ -281,13 +276,12 @@ export default function Play() {
       setErr('Имя должно содержать минимум 2 символа');
       return;
     }
-    if (joinedRef.current) return; // защита от двойного клика
+    if (joinedRef.current) return;
     joinedRef.current = true;
 
     localStorage.setItem('detective_name', v);
     trace('join_attempt', { wantCaptain });
 
-    // Если уже есть сохранённая команда для этой сессии — пытаемся реконнектиться
     const stored = localStorage.getItem(`team_${code}`);
     const reconnectTeamId = stored || undefined;
 
@@ -323,7 +317,6 @@ export default function Play() {
     });
   }
 
-  // --- Экран входа ---
   if (!joined) {
     return (
       <JoinScreen
@@ -365,10 +358,6 @@ export default function Play() {
   const aliveSuspects = scenario.suspects.filter(
     (s: any) => !eliminated.includes(s.id)
   );
-  const elimId = lastResult?.eliminatedId;
-  const elimSuspect = elimId
-    ? scenario.suspects.find((s: any) => s.id === elimId)
-    : null;
 
   if (phase === 'lobby') {
     return <LobbyScreen scenario={scenario} round={round} isCaptain={isCaptain} />;
@@ -403,15 +392,7 @@ export default function Play() {
     );
   }
   if (phase === 'results') {
-    return (
-      <ResultsScreen
-        scenario={scenario}
-        round={round}
-        lastResult={lastResult}
-        myTeam={myTeam}
-        elimSuspect={elimSuspect}
-      />
-    );
+    return <ResultsScreen scenario={scenario} round={round} />;
   }
   if (phase === 'end' || phase === 'results-final') {
     if (code) localStorage.removeItem(`team_${code}`);
@@ -1234,59 +1215,33 @@ function VoteAcceptedScreen({
 }
 
 // ============================================================
-// ЭКРАН 8: RESULTS
+// ЭКРАН 8: RESULTS (заглушка на клиенте)
 // ============================================================
 
-function ResultsScreen({
-  scenario,
-  round,
-  lastResult,
-  myTeam,
-  elimSuspect
-}: any) {
+function ResultsScreen({ scenario, round }: any) {
   return (
     <div className="relative min-h-screen flex justify-center bg-[#0e0d0c] text-[#e8e2d6] overflow-hidden">
       <RainCanvas opacity={0.4} lightning />
-      <main className="relative z-[2] w-full max-w-[480px] px-6 py-10">
-        <div className="text-[11px] tracking-[.32em] uppercase text-[#7d766b] text-center mb-2">
-          Итог раунда
+      <main className="relative z-[2] flex flex-col justify-center w-full max-w-[720px] px-6 py-10 text-center">
+        <i className="fa-solid fa-user-secret text-[28px] text-[#b9a898] mb-7 opacity-85" />
+        <div className="text-[12px] tracking-[.4em] uppercase text-[#8c7f74] mb-7">
+          Дело открыто · Итоги раунда {round}
         </div>
-        <h1 className="font-['Cormorant_Garamond'] font-medium text-[42px] leading-[1.05] text-[#f1ebdf] text-center mb-7">
-          Раунд {round}
+        <h1 className="font-['Cormorant_Garamond'] font-semibold text-[clamp(34px,6vw,60px)] leading-[1.15] text-[#f1e9df]">
+          Вердикт следствия на экране
         </h1>
-
-        {elimSuspect ? (
-          <div className="border border-[#2c2821] rounded-lg p-5 mb-6">
-            <div className="text-[10px] tracking-[.2em] uppercase text-[#b5553f] mb-2">
-              Вердикт следствия
-            </div>
-            <div className="flex items-center gap-2.5 mb-2">
-              <i className={`fa-solid ${elimSuspect.icon} text-[#c7654d]`} />
-              <div className="font-['Cormorant_Garamond'] text-[26px] text-[#f1ebdf]">
-                {elimSuspect.name}
-              </div>
-            </div>
-            <div className="text-[13px] text-[#a79f93] mb-2">{elimSuspect.role}</div>
-            <div className="text-[13px] text-[#a79f93] leading-snug">
-              {elimSuspect.verdict ||
-                'Большинство команд назвало его, но это не убийца. Он выбывает из расследования.'}
-            </div>
-          </div>
-        ) : (
-          <div className="text-center text-[#a79f93] text-sm mb-6">
-            Никто не выбывает в этом раунде.
-          </div>
-        )}
-
-        {myTeam && (
-          <div className="border-t border-[#2c2821] pt-4 text-center text-[12px] text-[#7d766b]">
-            {myTeam.vote
-              ? lastResult?.correctTeamIds?.includes(myTeam.id)
-                ? 'Ваш голос был верным'
-                : 'Ваш голос был ошибочным'
-              : 'Команда не голосовала'}
-          </div>
-        )}
+        <p className="font-['Cormorant_Garamond'] italic text-[clamp(17px,2.4vw,21px)] text-[#9c8f84] mt-5">
+          Посмотрите на главный экран, чтобы узнать, кого исключили из подозреваемых.
+        </p>
+        <div className="flex justify-center gap-2 mt-11">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#b0584a] animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-[#b0584a] animate-pulse" style={{ animationDelay: '.25s' }} />
+          <span className="w-1.5 h-1.5 rounded-full bg-[#b0584a] animate-pulse" style={{ animationDelay: '.5s' }} />
+        </div>
+        <div className="mt-12 text-[13px] text-[#6f645c]">
+          <i className="fa-solid fa-cloud-rain mr-1.5" />
+          Не доверяйте никому
+        </div>
       </main>
     </div>
   );
