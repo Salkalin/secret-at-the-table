@@ -41,6 +41,15 @@ export default function Host() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    // Автоподстановка выбранного на лендинге дела
+    const preferred = sessionStorage.getItem('preferred_case');
+    if (preferred) {
+      setSelected(preferred);
+      sessionStorage.removeItem('preferred_case');
+    }
+  }, []);
+
+  useEffect(() => {
     api<Scen[]>('/api/scenarios').then(setScens);
     loadSessions();
   }, []);
@@ -48,7 +57,7 @@ export default function Host() {
   const loadSessions = () =>
     api<SessionRow[]>('/api/host/sessions')
       .then(setSessions)
-      .catch(() => (location.href = '/login'));
+      .catch(() => (location.href = '/'));
 
   async function createSession() {
     if (busy) return;
@@ -75,7 +84,7 @@ export default function Host() {
     try {
       await api('/api/logout', { method: 'POST' });
     } catch {}
-    location.href = '/login';
+    location.href = '/';
   }
 
   const allCards = [
@@ -107,24 +116,24 @@ export default function Host() {
           const isSel = selected === card.id;
           return (
             <button
-  key={card.id}
-  disabled={card.soon}
-  onClick={() => !card.soon && setSelected(card.id)}
-  className={
-    'relative text-left rounded-[18px] p-6 min-h-[260px] flex flex-col transition overflow-hidden border ' +
-    (card.soon
-      ? 'border-line opacity-50 cursor-not-allowed'
-      : isSel
-      ? 'border-transparent'
-      : 'border-line hover:-translate-y-1')
-  }
-  style={{
-    background: isSel && !card.soon
-      ? `linear-gradient(180deg, ${card.color}22, rgba(16,10,8,.94))`
-      : 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))',
-    boxShadow: isSel && !card.soon ? `0 18px 50px -20px ${card.color}` : 'none'
-  }}
->
+              key={card.id}
+              disabled={card.soon}
+              onClick={() => !card.soon && setSelected(card.id)}
+              className={
+                'relative text-left rounded-[18px] p-6 min-h-[260px] flex flex-col transition overflow-hidden border ' +
+                (card.soon
+                  ? 'border-line opacity-50 cursor-not-allowed'
+                  : isSel
+                  ? 'border-transparent'
+                  : 'border-line hover:-translate-y-1')
+              }
+              style={{
+                background: isSel && !card.soon
+                  ? `linear-gradient(180deg, ${card.color}22, rgba(16,10,8,.94))`
+                  : 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))',
+                boxShadow: isSel && !card.soon ? `0 18px 50px -20px ${card.color}` : 'none'
+              }}
+            >
               {isSel && (
                 <span
                   className="absolute left-0 right-0 top-0 h-[3px]"
@@ -189,7 +198,6 @@ export default function Host() {
           <i className="fa-solid fa-arrow-right" />
         </button>
       </div>
-      
     </div>
   );
 }

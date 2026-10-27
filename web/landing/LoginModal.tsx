@@ -5,9 +5,10 @@ import { api } from '../api';
 type Props = {
   open: boolean;
   onClose: () => void;
+  preferredCase?: string;
 };
 
-export default function LoginModal({ open, onClose }: Props) {
+export default function LoginModal({ open, onClose, preferredCase }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
@@ -43,6 +44,9 @@ export default function LoginModal({ open, onClose }: Props) {
         method: 'POST',
         body: JSON.stringify({ email, password })
       });
+      if (preferredCase) {
+        sessionStorage.setItem('preferred_case', preferredCase);
+      }
       onClose();
       nav(r.role === 'ADMIN' ? '/admin' : '/host');
     } catch {
@@ -78,6 +82,13 @@ export default function LoginModal({ open, onClose }: Props) {
           Введите email и пароль, которые выдал администратор. Если у вас нет доступа —
           обратитесь к администратору игры.
         </p>
+
+        {preferredCase && (
+          <div className="mb-5 px-3.5 py-2.5 rounded-lg border border-lnd-line bg-white/[.03] text-[12px] text-lnd-amber flex items-center gap-2">
+            <i className="fa-solid fa-folder-open text-[12px]" />
+            Выбранное дело: <b className="text-lnd-cream">{preferredCase}</b>
+          </div>
+        )}
 
         <form onSubmit={submit} noValidate>
           <label className="block mb-3.5">
