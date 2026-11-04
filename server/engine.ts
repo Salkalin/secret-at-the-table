@@ -118,7 +118,7 @@ export function nextPhase(s: GameState): GameState {
       ns.phase = 'story';
       ns.round = 1;
       ns.roundStartedAt = Date.now();
-      ns.roundDurationSec = 900; // 15 минут
+      ns.roundDurationSec = 600; // 10 минут
       break;
     case 'story':
       ns.phase = 'discussion';
@@ -193,8 +193,10 @@ export function nextPhase(s: GameState): GameState {
         ns.phase = 'story';
         ns.round += 1;
         ns.roundStartedAt = Date.now();
-        // Раунд 1 — 15 минут (из case 'intro'), раунды 2-4 — 10 минут
-        ns.roundDurationSec = 600;
+        // Раунд 1 — 10 минут (из case 'intro'),
+        // раунды 2-3 — 10 минут,
+        // раунд 4 (финал) — 5 минут
+        ns.roundDurationSec = ns.round >= ns.totalRounds ? 300 : 600;
       }
       break;
     case 'end':

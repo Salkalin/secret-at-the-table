@@ -18,6 +18,16 @@ import {
   ElenaScene
 } from '../screens';
 
+import {
+  ManorIntroScene,
+  ManorChapter1Scene,
+  ManorChapter2Scene,
+  ManorChapter3Scene
+} from '../screens/manor';
+
+import { ManorHtmlScene } from '../screens/manor/ManorHtmlScene';
+import { MANOR_INTRO_HTML, MANOR_CH1_HTML, MANOR_CH2_HTML, MANOR_CH3_HTML } from '../screens/manor/html-sources';
+
 const fmt = (s: number) => {
   s = Math.max(0, s);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -54,10 +64,16 @@ export default function Screen() {
     if (!state) return;
     const sc = state.scenario;
     const ch = state.chapter;
+    const isManor = sc?.id === 'manor';
+    // Для manor используем SVG-сцены — bgUrl не нужен
+    if (isManor) {
+      setBgUrl('');
+      return;
+    }
     const showBg = ['intro', 'story'].includes(state.phase);
     const url = showBg ? ch?.bg || sc?.bg || '' : '';
     setBgUrl(url);
-  }, [state?.phase, state?.round, state?.chapter?.bg, state?.scenario?.bg]);
+  }, [state?.phase, state?.round, state?.chapter?.bg, state?.scenario?.bg, state?.scenario?.id]);
 
   // Останавливать озвучку при смене фазы
   const prevPhaseRef = useRef<string | null>(null);
@@ -152,8 +168,9 @@ export default function Screen() {
   const eliminated: string[] = eliminatedSuspects || [];
   const aliveSuspects = scenario.suspects.filter((s: any) => !eliminated.includes(s.id));
 
-  return (
-    <div className="min-h-screen p-6 md:p-8 max-w-[1200px] mx-auto">
+return (
+  <div className="min-h-screen p-6 md:p-8 max-w-[1200px] mx-auto">
+
       {bgUrl && (
         <div
           className="fixed inset-0 -z-20 transition-opacity duration-700"
@@ -181,6 +198,11 @@ export default function Screen() {
           {phase === 'end' && <ElenaScene />}
         </>
       )}
+      {scenario.id === 'manor' && phase === 'intro' && <ManorHtmlScene html={MANOR_INTRO_HTML} />}
+      {scenario.id === 'manor' && phase === 'story' && round === 1 && <ManorHtmlScene html={MANOR_CH1_HTML} />}
+      {scenario.id === 'manor' && phase === 'story' && round === 2 && <ManorHtmlScene html={MANOR_CH2_HTML} />}
+      {scenario.id === 'manor' && phase === 'story' && round === 3 && <ManorHtmlScene html={MANOR_CH3_HTML} />}
+      {scenario.id === 'manor' && phase === 'story' && round >= 4 && <FinalScene />}
 
       <Header
         phase={phase}
@@ -191,6 +213,10 @@ export default function Screen() {
         cluesCount={clues.length}
         speech={speech}
       />
+      {/* ⬇ ОТКРЫВАЕМ ОБЁРТКУ ⬇ */}
+      <div
+
+      >
 
       {phase === 'lobby' && (
         <Lobby
@@ -346,7 +372,7 @@ export default function Screen() {
           trace={trace}
         />
       )}
-
+      </div>
       {accuseOpen && phase === 'discussion' && (
         <AccuseModal
           suspects={aliveSuspects}
