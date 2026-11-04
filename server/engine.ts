@@ -280,6 +280,9 @@ export function publicState(s: GameState, opts: { revealSolution: boolean }) {
       victim: sc.victim,
       location: sc.location,
       bg: sc.bg,
+      rulesAudioUrl: sc.rulesAudioUrl,
+      solutionAudioUrl: sc.solutionAudioUrl,
+      eliminationOrder: sc.eliminationOrder,
       suspects: sc.suspects.map(({ secret, ...rest }) => rest),
       clues: sc.clues
     },
