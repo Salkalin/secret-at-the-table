@@ -249,12 +249,24 @@ export default function Screen() {
               Капитаны команд выбирают подозреваемого <b>на своих телефонах</b>.
             </p>
             <div className="mt-4 text-2xl font-mono text-accent tabular-nums">
-              <VotingCountdown />
+              <VotingCountdown
+                votingStartedAt={state.votingStartedAt}
+                duration={state.votingDurationSec || 60}
+              />
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-[1200px] mx-auto mb-10">
-            {aliveSuspects.map((s: any) => (
+<div
+  className={
+    'grid gap-4 mx-auto mb-10 ' +
+    (aliveSuspects.length === 1
+      ? 'grid-cols-1 max-w-md'
+      : aliveSuspects.length === 2
+      ? 'grid-cols-1 md:grid-cols-2 max-w-2xl'
+      : 'md:grid-cols-2 lg:grid-cols-3 max-w-[1200px]')
+  }
+>
+  {aliveSuspects.map((s: any) => (
               <div
                 key={s.id}
                 className="bg-panel border border-line rounded-2xl p-5 flex flex-col"
@@ -926,9 +938,7 @@ function Discussion({
                   <ClueAudioButton url={c.audioUrl} />
                 </div>
                 <p className="m-0 flex-1 font-mono text-[13px] leading-relaxed text-[#3a281c]">{c.desc}</p>
-                <small className="mt-3.5 pt-3 border-t border-dashed border-[rgba(42,28,20,.22)] text-[10px] tracking-[.16em] uppercase text-[#8a6a52] font-bold">
-                  Глава {ROMAN[c.round - 1] || c.round} · открыта на {fmt(markTime)}
-                </small>
+
               </div>
             );
           }
@@ -1547,12 +1557,29 @@ function AccuseModal({
   );
 }
 
-function VotingCountdown() {
-  const [left, setLeft] = useState(30);
+function VotingCountdown({
+  votingStartedAt,
+  duration = 60
+}: {
+  votingStartedAt?: number | null;
+  duration?: number;
+}) {
+  const [left, setLeft] = useState(() => {
+    if (!votingStartedAt) return duration;
+    return Math.max(0, duration - Math.floor((Date.now() - votingStartedAt) / 1000));
+  });
   useEffect(() => {
-    const t = setInterval(() => setLeft(l => Math.max(0, l - 1)), 1000);
+    if (!votingStartedAt) {
+      setLeft(duration);
+      return;
+    }
+    const tick = () => {
+      setLeft(Math.max(0, duration - Math.floor((Date.now() - votingStartedAt) / 1000)));
+    };
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [votingStartedAt, duration]);
   return <span>0:{String(left).padStart(2, '0')}</span>;
 }
 
