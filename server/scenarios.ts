@@ -172,7 +172,7 @@ export const SCENARIOS: Scenario[] = [
       'v5'
     ],
     killerId: 'v4',
-    rulesAudioUrl: '/audio/rules.mp3',
+    rulesAudioUrl: '',
     chapters: [
       {
         bg: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=1920&q=70',
@@ -332,7 +332,7 @@ export const SCENARIOS: Scenario[] = [
   bg: 'https://images.unsplash.com/photo-1503095396549-807759245b35?auto=format&fit=crop&w=1920&q=70',
   eliminationOrder: ['t5', 't3', 't2', 't1'],
   killerId: 't4',
-  rulesAudioUrl: '/audio/rules.mp3',
+  rulesAudioUrl: '',
   chapters: [
     {
       round: 1,
