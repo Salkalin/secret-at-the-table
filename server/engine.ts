@@ -16,6 +16,7 @@ export type TeamState = {
 export type GameState = {
   code: string;
   scenarioId: string;
+  scenarioData?: Scenario;
   phase: Phase;
   round: number;
   totalRounds: number;
@@ -55,7 +56,7 @@ export function createInitialState(code: string, scenarioId: string): GameState 
 }
 
 export const scenarioOf = (s: GameState): Scenario =>
-  SCENARIOS.find(x => x.id === s.scenarioId) || SCENARIOS[0];
+  s.scenarioData || SCENARIOS.find(x => x.id === s.scenarioId) || SCENARIOS[0];
 
 export function generateCode(): string {
   const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -64,7 +65,7 @@ export function generateCode(): string {
 
 function pickElimination(s: GameState): string | null {
   const sc = scenarioOf(s);
-  const killerId = sc.suspects.find(x => x.isGuilty)?.id;
+  const killerId = sc.killerId ?? sc.suspects.find(x => x.isGuilty)?.id;
   const alive = sc.suspects.filter(x => !s.eliminatedSuspects.includes(x.id));
   const nonKiller = alive.filter(x => x.id !== killerId);
   if (nonKiller.length <= 1) return null;
@@ -126,9 +127,9 @@ export function nextPhase(s: GameState): GameState {
         wrongTeamIds: [] as string[],
         eliminatedId: null as string | null
       };
-      const killer = sc.suspects.find(x => x.isGuilty)!;
+      const killerId = sc.killerId ?? sc.suspects.find(x => x.isGuilty)?.id;
       ns.teams.forEach(t => {
-        const correct = t.vote === killer.id;
+        const correct = t.vote === killerId;
         const isFinal = ns.round >= ns.totalRounds;
         let roundScore = 0;
         if (correct) {
@@ -279,6 +280,7 @@ export function publicState(s: GameState, opts: { revealSolution: boolean }) {
   if (opts.revealSolution) {
     base.solution = sc.solution;
     base.fullSuspects = sc.suspects;
+    base.killerId = sc.killerId;
   }
   return base;
 }

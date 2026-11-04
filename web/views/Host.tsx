@@ -23,8 +23,8 @@ const SCENARIO_META: Record<
   { icon: string; color: string; tag: string; no: string; soon?: boolean }
 > = {
   dinner: { icon: 'fa-utensils', color: '#e0603a', tag: 'Отравление', no: '017' },
-  manor: { icon: 'fa-chess-rook', color: '#3fb39c', tag: 'Скоро', no: '042', soon: true },
-  theatre: { icon: 'fa-masks-theater', color: '#d2663f', tag: 'Скоро', no: '003', soon: true }
+  manor: { icon: 'fa-chess-rook', color: '#3fb39c', tag: 'Запертая комната', no: '042' },
+  theatre: { icon: 'fa-masks-theater', color: '#e3b04b', tag: 'Премьера', no: '088' }
 };
 
 const RANDOM_META = {

@@ -4,6 +4,7 @@ import * as A from './auth.js';
 import * as E from './engine.js';
 import { setSession, getSession } from './socket.js';
 import { SCENARIOS } from './scenarios.js';
+import { getAllScenariosMerged, getScenarioMerged } from './scenarios-merge.js';
 
 type Level = 'info' | 'warn' | 'error';
 type LogArgs = {
@@ -200,13 +201,14 @@ export async function routes(app: FastifyInstance) {
     const auth = A.getAuthFromCookie(req);
     if (!auth) return reply.code(401).send({ error: 'unauthorized' });
     const { scenarioId } = (req.body as any) || {};
-    const sc = SCENARIOS.find(s => s.id === scenarioId);
+    const sc = await getScenarioMerged(scenarioId);
     if (!sc) return reply.code(400).send({ error: 'bad_scenario' });
 
     let code = E.generateCode();
     while (await prisma.gameSession.findUnique({ where: { code } })) code = E.generateCode();
 
     const state = E.createInitialState(code, sc.id);
+    state.scenarioData = sc;
     const session = await prisma.gameSession.create({
       data: { code, hostId: auth.uid, scenario: sc.id, state: state as any, status: 'lobby' }
     });
@@ -225,9 +227,145 @@ export async function routes(app: FastifyInstance) {
     return { code, id: session.id };
   });
 
-  app.get('/api/scenarios', async () =>
-    SCENARIOS.map(s => ({ id: s.id, title: s.title, description: s.description, icon: s.icon }))
+// ============================================
+// Admin: editor for scenarios
+// ============================================
+
+// Получить смерженный сценарий + признак «есть ли правки»
+app.get('/api/admin/scenarios/:id', async (req, reply) => {
+  if (!A.requireRole(req, reply, 'ADMIN')) return;
+  const { id } = req.params as any;
+  const merged = await getScenarioMerged(id);
+  if (!merged) return reply.code(404).send({ error: 'not_found' });
+  const edit = await prisma.scenarioEdit.findUnique({ where: { id } });
+  return { scenario: merged, hasEdit: !!edit, updatedAt: edit?.updatedAt ?? null };
+});
+
+// Сохранить правки (полная замена сценария)
+app.post('/api/admin/scenarios/:id', async (req, reply) => {
+  if (!A.requireRole(req, reply, 'ADMIN')) return;
+  const { id } = req.params as any;
+  const base = SCENARIOS.find(s => s.id === id);
+  if (!base) return reply.code(404).send({ error: 'not_found' });
+  const data = (req.body as any)?.data;
+  if (!data || typeof data !== 'object') return reply.code(400).send({ error: 'bad_data' });
+
+  await prisma.scenarioEdit.upsert({
+    where: { id },
+    update: { data },
+    create: { id, data }
+  });
+
+  return { ok: true };
+});
+
+// Сбросить к базовой версии
+app.delete('/api/admin/scenarios/:id', async (req, reply) => {
+  if (!A.requireRole(req, reply, 'ADMIN')) return;
+  const { id } = req.params as any;
+  await prisma.scenarioEdit.deleteMany({ where: { id } });
+  return { ok: true };
+});
+
+// Список всех сценариев (для левой колонки админки)
+app.get('/api/admin/scenarios', async (req, reply) => {
+  if (!A.requireRole(req, reply, 'ADMIN')) return;
+  const edits = await prisma.scenarioEdit.findMany();
+  const editMap = new Map(edits.map(e => [e.id, e.updatedAt]));
+  return SCENARIOS.map(s => ({
+    id: s.id,
+    title: s.title,
+    description: s.description,
+    icon: s.icon,
+    hasEdit: editMap.has(s.id),
+    updatedAt: editMap.get(s.id) ?? null
+  }));
+});
+
+// ============================================
+// Admin: flush scenarios edits into TS source
+// ============================================
+
+app.get('/api/admin/scenarios/:id/flush', async (req, reply) => {
+  if (!A.requireRole(req, reply, 'ADMIN')) return;
+  const { id } = req.params as any;
+
+  const base = SCENARIOS.find(s => s.id === id);
+  if (!base) return reply.code(404).send({ error: 'not_found' });
+
+  const merged = await getScenarioMerged(id);
+  if (!merged) return reply.code(404).send({ error: 'not_found' });
+
+  // Генерируем TS-код объекта сценария (как в scenarios.ts)
+  const ts = toTsObject(merged, 2);
+
+  // Отдаём как файл
+  reply.header('Content-Type', 'text/plain; charset=utf-8');
+  reply.header(
+    'Content-Disposition',
+    `attachment; filename="${id}.ts.txt"`
   );
+  return (
+    `// Скопируй этот объект в server/scenarios.ts, заменив существующий с id="${id}"\n` +
+    `// и запусти: git add server/scenarios.ts && git commit -m "chore(scenarios): sync ${id} from admin"\n\n` +
+    ts
+  );
+});
+
+/**
+ * Сериализует объект в TS-код с отступами и правильным экранированием.
+ * Сохраняет порядок ключей, как в объекте.
+ */
+function toTsString(value: string): string {
+  // Многострочные строки (>200 символов или с \n) — через template literal,
+  // чтобы не было гигантской однострочной простыни с \n
+  const hasNewlines = value.includes('\n');
+  const isLong = value.length > 200;
+
+  if (hasNewlines || isLong) {
+    // Экранируем только обратные кавычки и ${, чтобы не сломать template literal
+    const escaped = value
+      .replace(/\\/g, '\\\\')
+      .replace(/`/g, '\\`')
+      .replace(/\$\{/g, '\\${');
+    return `\`${escaped}\``;
+  }
+
+  // Короткие строки — обычные одинарные кавычки
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n')}'`;
+}
+
+function toTsObject(value: any, indent: number): string {
+  const pad = ' '.repeat(indent);
+  const padInner = ' '.repeat(indent + 2);
+
+  if (value === null) return 'null';
+  if (typeof value === 'string') return toTsString(value);
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '[]';
+    const items = value.map(v => padInner + toTsObject(v, indent + 2)).join(',\n');
+    return `[\n${items}\n${pad}]`;
+  }
+
+  if (typeof value === 'object') {
+    const keys = Object.keys(value);
+    if (keys.length === 0) return '{}';
+    const lines = keys.map(k => {
+      const key = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(k) ? k : `'${k}'`;
+      return `${padInner}${key}: ${toTsObject(value[k], indent + 2)}`;
+    });
+    return `{\n${lines.join(',\n')}\n${pad}}`;
+  }
+
+  return 'undefined';
+}
+
+  app.get('/api/scenarios', async () => {
+  const list = await getAllScenariosMerged();
+  return list.map(s => ({ id: s.id, title: s.title, description: s.description, icon: s.icon }));
+  });
 
   app.get('/api/session/:code', async (req, reply) => {
     const { code } = req.params as any;

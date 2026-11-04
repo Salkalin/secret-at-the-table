@@ -166,16 +166,21 @@ export default function Screen() {
         />
       )}
 
-      {phase === 'intro' && <IntroScene />}
-      {phase === 'story' && round === 1 && <Chapter1Scene />}
-      {phase === 'story' && round === 2 && <Chapter2Scene />}
-      {phase === 'story' && round === 3 && <Chapter3Scene />}
-      {phase === 'story' && round >= 4 && <FinalScene />}
-      {phase === 'results' && round === 1 && <OlegScene />}
-      {phase === 'results' && round === 2 && <DmitryScene />}
-      {phase === 'results' && round === 3 && <MariaScene />}
-      {phase === 'results' && round >= 4 && <ViktorScene />}
-      {phase === 'end' && <ElenaScene />}
+      {/* SVG-сцены показываем только для сценария 'dinner' — для остальных фон из bgUrl */}
+      {scenario.id === 'dinner' && (
+        <>
+          {phase === 'intro' && <IntroScene />}
+          {phase === 'story' && round === 1 && <Chapter1Scene />}
+          {phase === 'story' && round === 2 && <Chapter2Scene />}
+          {phase === 'story' && round === 3 && <Chapter3Scene />}
+          {phase === 'story' && round >= 4 && <FinalScene />}
+          {phase === 'results' && round === 1 && <OlegScene />}
+          {phase === 'results' && round === 2 && <DmitryScene />}
+          {phase === 'results' && round === 3 && <MariaScene />}
+          {phase === 'results' && round >= 4 && <ViktorScene />}
+          {phase === 'end' && <ElenaScene />}
+        </>
+      )}
 
       <Header
         phase={phase}
@@ -299,6 +304,8 @@ export default function Screen() {
           result={lastResult}
           teams={teams}
           suspects={scenario.suspects}
+          eliminated={eliminated}
+          eliminationOrder={scenario.eliminationOrder}
           advance={advance}
           round={round}
           totalRounds={totalRounds}
@@ -1287,22 +1294,57 @@ function KillerCard({ suspect }: { suspect: any }) {
 // RESULTS
 // ============================================================
 
-function Results({ result, suspects, advance, round, totalRounds, busy }: any) {
+function Results({
+  result,
+  suspects,
+  eliminated,
+  eliminationOrder,
+  advance,
+  round,
+  totalRounds,
+  busy
+}: any) {
   const elimId = result?.eliminatedId;
   const safeSuspects = suspects || [];
+  const safeEliminated: string[] = eliminated || [];
   const elimSuspect = elimId ? safeSuspects.find((s: any) => s.id === elimId) : null;
   const isLast = round >= totalRounds;
 
   if (isLast) {
-    const viktor = suspects.find((s: any) => s.id === 's5') || {
-      id: 's5', name: 'Виктор', role: 'Бывший партнёр', icon: 'fa-briefcase', verdict: ''
-    };
+    const killerId = safeSuspects.find((s: any) => s.isGuilty)?.id;
+
+    // 1) Последний в eliminationOrder — по канону именно он "последний не убийца"
+    const lastInOrder =
+      Array.isArray(eliminationOrder) && eliminationOrder.length > 0
+        ? eliminationOrder[eliminationOrder.length - 1]
+        : null;
+
+    // 2) Fallback: единственный живой не-убийца
+    const aliveNonKillers = safeSuspects.filter(
+      (s: any) => s.id !== killerId && !safeEliminated.includes(s.id)
+    );
+
+    // 3) Крайний fallback: последний не-убийца в массиве
+    const anyNonKiller = [...safeSuspects].reverse().find((s: any) => s.id !== killerId);
+
+    const lastId = lastInOrder || aliveNonKillers[0]?.id || anyNonKiller?.id;
+    const lastSuspect =
+      safeSuspects.find((s: any) => s.id === lastId) ||
+      aliveNonKillers[0] ||
+      anyNonKiller || {
+        id: '-',
+        name: '—',
+        role: '',
+        icon: 'fa-user',
+        verdict: ''
+      };
+
     return (
       <div>
         <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-8">
           Вердикт следствия
         </h2>
-        <FinalVerdictCard suspect={viktor} />
+        <FinalVerdictCard suspect={lastSuspect} />
         <button
           onClick={advance}
           disabled={busy}
