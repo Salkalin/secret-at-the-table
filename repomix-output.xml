@@ -1,0 +1,2305 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+The content has been processed where content has been compressed (code blocks are separated by ⋮---- delimiter).
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Content has been compressed - code blocks are separated by ⋮---- delimiter
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+prisma/
+  migrations/
+    20260926222810_init/
+      migration.sql
+    20261024100020_add_game_logs/
+      migration.sql
+    20261030133049_add_scenario_edits/
+      migration.sql
+    migration_lock.toml
+  schema.prisma
+public/
+  audio/
+    chapter-1.mp3
+    chapter-3.mp3
+    clue-dinner-1.mp3
+    clue-dinner-2.mp3
+    clue-dinner-3.mp3
+    clue-dinner-5.mp3
+    clue-dinner-6.mp3
+    clue-dinner-7.mp3
+    clue-dinner-8.mp3
+    clue-dinner-9.mp3
+    rules.mp3.mp3
+    verdict-dmitry.mp3
+    verdict-elena.mp3
+    verdict-maria.mp3
+    verdict-oleg.mp3
+    verdict-viktor.mp3
+server/
+  auth.ts
+  db.ts
+  engine.ts
+  index.ts
+  routes.ts
+  scenarios-merge.ts
+  scenarios.ts
+  socket.ts
+web/
+  landing/
+    Cases.tsx
+    data.ts
+    Features.tsx
+    FinalCta.tsx
+    Footer.tsx
+    Gallery.tsx
+    Hero.tsx
+    HowItWorks.tsx
+    Landing.tsx
+    Lightbox.tsx
+    LoginModal.tsx
+    Marquee.tsx
+    Nav.tsx
+    Numbers.tsx
+    PartnerForm.tsx
+    Reviews.tsx
+    ThreeScene.tsx
+    Videos.tsx
+  screens/
+    Chapter1Scene.tsx
+    Chapter2Scene.tsx
+    Chapter3Scene.tsx
+    DmitryScene.tsx
+    ElenaScene.tsx
+    FinalScene.tsx
+    index.ts
+    IntroScene.tsx
+    MariaScene.tsx
+    OlegScene.tsx
+    ViktorScene.tsx
+  views/
+    Admin.tsx
+    Host.tsx
+    Landing.tsx
+    Login.tsx
+    Play.tsx
+    Screen.tsx
+  api.ts
+  App.tsx
+  audio.tsx
+  index.css
+  main.tsx
+  RainBackground.tsx
+  socket.ts
+  SpeechContext.tsx
+  ThunderSound.tsx
+  ui.tsx
+.dockerignore
+.env.example
+.gitattributes
+.gitignore
+Caddyfile
+docker-compose.dev.yml
+docker-compose.yml
+Dockerfile
+index.html
+package.json
+postcss.config.js
+README.md
+tailwind.config.js
+tsconfig.json
+tsconfig.server.json
+vite.config.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="prisma/migrations/20261030133049_add_scenario_edits/migration.sql">
+-- CreateTable
+CREATE TABLE "ScenarioEdit" (
+    "id" TEXT NOT NULL,
+    "data" JSONB NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ScenarioEdit_pkey" PRIMARY KEY ("id")
+);
+</file>
+
+<file path="server/scenarios-merge.ts">
+import { prisma } from './db.js';
+import { SCENARIOS, Scenario } from './scenarios.js';
+⋮----
+/**
+ * Возвращает базовый сценарий, на который наложены правки из БД (если есть).
+ * Глубокий мерж: если в БД пришёл объект, он заменяет базовый.
+ */
+export async function getScenarioMerged(id: string): Promise<Scenario | null>
+⋮----
+export async function getAllScenariosMerged(): Promise<Scenario[]>
+⋮----
+function deepMerge<T>(base: T, patch: any): T
+⋮----
+// Массив массивов: заменяем целиком (это chapters[][], clues[][])
+⋮----
+// Если элементы — объекты с id (suspects), мержим по id
+</file>
+
+<file path="prisma/migrations/20260926222810_init/migration.sql">
+-- CreateEnum
+CREATE TYPE "Role" AS ENUM ('ADMIN', 'HOST');
+
+-- CreateTable
+CREATE TABLE "User" (
+    "id" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
+    "role" "Role" NOT NULL,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "GameSession" (
+    "id" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "hostId" TEXT NOT NULL,
+    "scenario" TEXT NOT NULL,
+    "state" JSONB NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'lobby',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "endedAt" TIMESTAMP(3),
+
+    CONSTRAINT "GameSession_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Player" (
+    "id" TEXT NOT NULL,
+    "sessionId" TEXT NOT NULL,
+    "nickname" TEXT NOT NULL,
+    "socketId" TEXT,
+    "teamId" TEXT,
+    "isCaptain" BOOLEAN NOT NULL DEFAULT false,
+    "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Player_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Team" (
+    "id" TEXT NOT NULL,
+    "sessionId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "score" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "Team_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Vote" (
+    "id" TEXT NOT NULL,
+    "teamId" TEXT NOT NULL,
+    "round" INTEGER NOT NULL,
+    "suspectId" TEXT NOT NULL,
+    "correct" BOOLEAN,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Vote_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GameSession_code_key" ON "GameSession"("code");
+
+-- CreateIndex
+CREATE INDEX "GameSession_code_idx" ON "GameSession"("code");
+
+-- AddForeignKey
+ALTER TABLE "GameSession" ADD CONSTRAINT "GameSession_hostId_fkey" FOREIGN KEY ("hostId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Player" ADD CONSTRAINT "Player_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "GameSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Player" ADD CONSTRAINT "Player_teamId_fkey" FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Team" ADD CONSTRAINT "Team_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "GameSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Vote" ADD CONSTRAINT "Vote_teamId_fkey" FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+</file>
+
+<file path="prisma/migrations/20261024100020_add_game_logs/migration.sql">
+-- CreateTable
+CREATE TABLE "GameLog" (
+    "id" TEXT NOT NULL,
+    "sessionId" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "level" TEXT NOT NULL DEFAULT 'info',
+    "event" TEXT NOT NULL,
+    "actor" TEXT,
+    "payload" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "GameLog_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "GameLog_sessionId_idx" ON "GameLog"("sessionId");
+
+-- CreateIndex
+CREATE INDEX "GameLog_code_idx" ON "GameLog"("code");
+
+-- CreateIndex
+CREATE INDEX "GameLog_createdAt_idx" ON "GameLog"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "GameLog_event_idx" ON "GameLog"("event");
+
+-- AddForeignKey
+ALTER TABLE "GameLog" ADD CONSTRAINT "GameLog_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "GameSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+</file>
+
+<file path="prisma/migrations/migration_lock.toml">
+# Please do not edit this file manually
+# It should be added in your version-control system (e.g., Git)
+provider = "postgresql"
+</file>
+
+<file path="server/auth.ts">
+import argon2 from 'argon2';
+import jwt from 'jsonwebtoken';
+⋮----
+export type JwtPayload = { uid: string; role: 'ADMIN' | 'HOST' };
+⋮----
+export const hashPassword = (pw: string)
+export const verifyPassword = (hash: string, pw: string)
+⋮----
+export const signToken = (payload: JwtPayload)
+⋮----
+export const verifyToken = (token: string): JwtPayload | null =>
+⋮----
+export const setAuthCookie = (reply: any, token: string) =>
+⋮----
+export const clearAuthCookie = (reply: any)
+⋮----
+export const getAuthFromCookie = (req: any): JwtPayload | null =>
+⋮----
+export const requireRole = (req: any, reply: any, role: 'ADMIN' | 'HOST') =>
+</file>
+
+<file path="server/db.ts">
+import { PrismaClient } from '@prisma/client';
+</file>
+
+<file path="web/landing/Features.tsx">
+import { FEATURES } from './data';
+⋮----
+export default function Features()
+</file>
+
+<file path="web/landing/FinalCta.tsx">
+import { FINAL } from './data';
+⋮----
+type Props = {
+  onCabinet: () => void;
+};
+⋮----
+export default function FinalCta(
+</file>
+
+<file path="web/landing/Footer.tsx">
+import { FOOTER } from './data';
+⋮----
+export default function Footer()
+</file>
+
+<file path="web/landing/Gallery.tsx">
+import { PHOTOS } from './data';
+⋮----
+type Props = {
+  onOpen: (index: number) => void;
+};
+</file>
+
+<file path="web/landing/Hero.tsx">
+import { useEffect, useRef, useState } from 'react';
+import { HERO } from './data';
+⋮----
+type Props = {
+  onCabinet: () => void;
+  onReel: () => void;
+};
+⋮----
+function StatNumber({
+  to,
+  suf,
+  fixed
+}: {
+  to: number;
+  suf?: string;
+  fixed?: number;
+})
+⋮----
+const step = (now: number) =>
+</file>
+
+<file path="web/landing/HowItWorks.tsx">
+import { STEPS } from './data';
+⋮----
+export default function HowItWorks()
+</file>
+
+<file path="web/landing/Lightbox.tsx">
+import { useEffect } from 'react';
+import { PHOTOS, VIDEOS } from './data';
+⋮----
+export type LightboxState = {
+  mode: 'photo' | 'video' | 'reel';
+  listIndex: number;
+  videoIndex: number;
+  title: string;
+};
+⋮----
+type Props = {
+  state: LightboxState | null;
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+};
+⋮----
+const onKey = (e: KeyboardEvent) =>
+</file>
+
+<file path="web/landing/Marquee.tsx">
+import { PLACES } from './data';
+⋮----
+export default function Marquee()
+</file>
+
+<file path="web/landing/Numbers.tsx">
+import { useEffect, useRef, useState } from 'react';
+import { NUMBERS, NumberItem } from './data';
+⋮----
+const step = (now: number) =>
+</file>
+
+<file path="web/landing/PartnerForm.tsx">
+import { useState } from 'react';
+import { BIZ_BENEFITS } from './data';
+⋮----
+function submit(e: React.FormEvent)
+</file>
+
+<file path="web/landing/Reviews.tsx">
+import { REVIEWS } from './data';
+</file>
+
+<file path="web/landing/Videos.tsx">
+import { PHOTOS, VIDEOS } from './data';
+⋮----
+type Props = {
+  onOpen: (videoIndex: number) => void;
+};
+⋮----
+onClick=
+</file>
+
+<file path="web/screens/Chapter1Scene.tsx">
+
+</file>
+
+<file path="web/screens/Chapter2Scene.tsx">
+
+</file>
+
+<file path="web/screens/Chapter3Scene.tsx">
+
+</file>
+
+<file path="web/screens/DmitryScene.tsx">
+{/* Каменные стены */}
+⋮----
+{/* Туннель */}
+⋮----
+{/* Пол */}
+⋮----
+{/* Стеллаж справа */}
+⋮----
+{/* Банки на полке */}
+⋮----
+{/* Сыры на средней полке */}
+⋮----
+{/* Подвесные припасы */}
+⋮----
+{/* Колбасы */}
+⋮----
+{/* Окорок */}
+⋮----
+{/* Травы */}
+⋮----
+{/* Бочки */}
+⋮----
+{/* Стоячая бочка со свечой */}
+⋮----
+{/* Пыль в луче света */}
+⋮----
+{/* Свеча — анимация через inline style */}
+</file>
+
+<file path="web/screens/ElenaScene.tsx">
+{/* База */}
+⋮----
+{/* Окно */}
+⋮----
+{/* Мелкий дождь — статичные штрихи */}
+⋮----
+{/* Лампа */}
+</file>
+
+<file path="web/screens/IntroScene.tsx">
+{/* bg-base (радиальные градиенты) */}
+⋮----
+{/* window (левое окно) */}
+⋮----
+{/* kitchen SVG */}
+⋮----
+{/* Портрет шефа */}
+⋮----
+{/* Полка с кастрюлями */}
+⋮----
+{/* Подвешенные приборы */}
+⋮----
+{/* Подставка для ножей */}
+⋮----
+{/* Стол */}
+⋮----
+{/* Тарелка */}
+⋮----
+{/* Вилка и нож */}
+⋮----
+{/* Ваза с фруктами */}
+⋮----
+{/* Бокал */}
+⋮----
+{/* Бутылка */}
+⋮----
+{/* Опрокинутый бокал */}
+⋮----
+{/* Флакон с ядом */}
+⋮----
+{/* Свеча */}
+</file>
+
+<file path="web/screens/OlegScene.tsx">
+export default function OlegScene()
+⋮----
+{/* Стена */}
+⋮----
+{/* Труба */}
+⋮----
+{/* Вентиляция */}
+⋮----
+{/* Перила */}
+⋮----
+{/* Земля */}
+⋮----
+{/* Окурки */}
+</file>
+
+<file path="web/views/Login.tsx">
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../api';
+import { Input, PrimaryBtn, Card } from '../ui';
+⋮----
+export default function Login()
+⋮----
+async function submit(e: React.FormEvent)
+⋮----
+<Input type="password" placeholder="Пароль" value=
+</file>
+
+<file path="web/api.ts">
+export async function api<T>(url: string, opts: RequestInit =
+</file>
+
+<file path="web/audio.tsx">
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState
+} from 'react';
+⋮----
+type AudioCtx = {
+  playUrl: (url: string) => void;
+  playQueue: (urls: string[]) => void;
+  stop: () => void;
+  pause: () => void;
+  resume: () => void;
+  toggle: (url: string) => void;
+  playingUrl: string | null;
+  isPlaying: boolean;
+};
+⋮----
+export function AudioProvider(
+⋮----
+const onPlay = ()
+const onPause = ()
+const onEnded = () =>
+⋮----
+export function useAudio()
+⋮----
+export function useAudioButton(url?: string)
+</file>
+
+<file path="web/ThunderSound.tsx">
+import { useEffect, useRef, useState } from 'react';
+⋮----
+type Props = {
+  trigger: number;
+};
+⋮----
+export default function ThunderSound(
+⋮----
+function initAudio()
+⋮----
+function thunder()
+⋮----
+// eslint-disable-next-line react-hooks/exhaustive-deps
+⋮----
+function toggle()
+</file>
+
+<file path="web/ui.tsx">
+export const Btn = ({ children, className = '', ...p }: any) => (
+  <button
+    {...p}
+    className={'px-5 py-3 rounded-lg bg-panel border border-line hover:bg-panel2 transition text-text font-medium ' + className}
+  >
+    {children}
+  </button>
+);
+⋮----
+export const PrimaryBtn = ({ children, className = '', ...p }: any) => (
+  <button
+    {...p}
+    className={'px-5 py-3 rounded-lg bg-accent hover:opacity-90 text-white font-medium disabled:opacity-40 ' + className}
+  >
+    {children}
+  </button>
+);
+⋮----
+export const Card = ({ children, className = '' }: any) => (
+  <div className={'bg-panel border border-line rounded-xl p-5 ' + className}>{children}</div>
+);
+⋮----
+export const Input = (p: any) => (
+  <input
+    {...p}
+    className="w-full bg-panel border border-line rounded-lg px-4 py-3 text-text outline-none focus:border-accent"
+  />
+);
+</file>
+
+<file path=".dockerignore">
+node_modules
+dist
+.git
+.gitignore
+.env
+.env.*
+*.md
+docker-compose*.yml
+Dockerfile
+Caddyfile
+</file>
+
+<file path=".env.example">
+# --- База данных ---
+DATABASE_URL=postgresql://mystery:mystery@localhost:5432/mystery
+DB_PASSWORD=mystery
+
+# --- Сервер ---
+PORT=3000
+NODE_ENV=development
+PUBLIC_URL=http://localhost:3000
+JWT_SECRET=change-me-to-a-long-random-string
+
+# --- Первый админ ---
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=changeme123
+</file>
+
+<file path=".gitattributes">
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.png binary
+*.jpg binary
+*.ico binary
+</file>
+
+<file path=".gitignore">
+# Зависимости
+node_modules
+
+# Сборка
+dist
+
+# Локальные переменные окружения
+.env
+.env.local
+.env.production
+
+# Логи
+*.log
+
+# Мусор ОС
+.DS_Store
+Thumbs.db
+
+# Prisma dev-файлы
+prisma/migrations/dev.db*
+
+# Docker (локальные данные)
+pgdata/
+caddy_data/
+caddy_config/
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+
+# Vite
+node_modules/.vite
+</file>
+
+<file path="Caddyfile">
+:80 {
+    encode gzip
+    reverse_proxy app:3000
+}
+</file>
+
+<file path="docker-compose.yml">
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mystery
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-mystery}
+      POSTGRES_DB: mystery
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mystery"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://mystery:${DB_PASSWORD:-mystery}@db:5432/mystery
+      JWT_SECRET: ${JWT_SECRET:-please-change-me-in-production}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme123}
+      NODE_ENV: production
+      PORT: 3000
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+</file>
+
+<file path="Dockerfile">
+# ---------- build ----------
+FROM node:22-alpine AS build
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npx prisma generate
+RUN npm run build
+
+# ---------- runtime ----------
+FROM node:22-alpine
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
+COPY prisma ./prisma
+
+EXPOSE 3000
+
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server/index.js"]
+</file>
+
+<file path="postcss.config.js">
+
+</file>
+
+<file path="README.md">
+# Тайна за столом
+
+Мультиплеерная детективная игра для кафе, баров и корпоративов. Ведущий запускает сессию на большом экране, гости сканируют QR со своих телефонов и играют командами за столами. Побеждает команда, которая быстрее и точнее назовёт убийцу.
+
+---
+
+## Что внутри
+
+- **Backend:** Node.js 22 + Fastify 5 + Socket.IO
+- **БД:** PostgreSQL 16 + Prisma ORM
+- **Frontend:** React 18 + Vite + TypeScript + Tailwind
+- **Деплой:** Docker + Caddy (авто-HTTPS)
+- **Озвучка:** браузерный SpeechSynthesis (без внешних сервисов)
+- **Эффект:** дождь на canvas + градиентный фон
+
+### Роли
+
+- **admin** — владелец. Создаёт и блокирует ведущих.
+- **host** — ведущий. Создаёт игровые сессии, управляет ходом игры.
+- **player** — гость. Капитан команды (первый нажавший «Я капитан») голосует за стол. Остальные — зрители.
+
+### Правила
+
+- Раундов: **3**, по главе на раунд.
+- Время на обсуждение: **10 минут** на раунд.
+- Голосует **только капитан** команды, со своего телефона.
+- Правильный ответ: **+500** очков команде.
+- Неправильный: **−200** очков.
+
+---
+
+## Быстрый старт (локально, для разработки)
+
+### Требования
+
+- Node.js 20+ (рекомендуется 22)
+- Docker Desktop (для локальной БД)
+- Git
+
+### Шаги
+
+```bash
+# 1. Клонировать
+git clone <URL_ВАШЕГО_РЕПО>
+cd secret-at-the-table
+
+# 2. Установить зависимости
+npm install
+
+# 3. Создать .env
+cp .env.example .env
+
+# 4. Запустить локальную PostgreSQL
+docker compose -f docker-compose.dev.yml up -d db
+
+# 5. Применить миграции
+npx prisma migrate dev
+
+# 6. Запустить dev-режим
+npm run dev
+```
+
+Открыть:
+- Фронт: `http://localhost:5173`
+- API: `http://localhost:3000`
+
+Войти как админ: `admin@example.com` / `changeme123` (из `.env`).
+
+### Проверка игры
+
+1. `/login` → войти как админ.
+2. Создать ведущего (`host@test.ru` / `12345`).
+3. Выйти → войти как ведущий.
+4. «Запустить сессию» → откроется `/screen/XXXX` с QR.
+5. В новой вкладке `/play/XXXX` → стать капитаном.
+6. Начать игру → пройти 3 раунда.
+
+---
+
+## Production (Docker)
+
+### Локальная проверка
+
+```bash
+docker compose build app
+docker compose up -d
+docker compose ps
+docker compose logs app --tail 20
+```
+
+Открыть `http://localhost/`.
+
+### Остановка
+
+```bash
+docker compose down
+```
+
+Полный сброс (включая БД):
+
+```bash
+docker compose down -v
+```
+
+---
+
+## Деплой на VPS
+
+### Требования к VPS
+
+- Ubuntu 22.04 или 24.04 (или Debian 12)
+- 1 GB RAM минимум
+- Docker и docker-compose-plugin
+
+### Шаг 1. Установить Docker
+
+```bash
+sudo apt update
+sudo apt install -y docker.io docker-compose-plugin git
+sudo usermod -aG docker $USER
+# Выйти и зайти заново (или перелогиниться)
+```
+
+### Шаг 2. Клонировать проект
+
+```bash
+cd ~
+git clone <URL_ВАШЕГО_РЕПО>
+cd secret-at-the-table
+```
+
+### Шаг 3. Создать `.env`
+
+```bash
+cat > .env <<EOF
+DB_PASSWORD=$(openssl rand -hex 16)
+JWT_SECRET=$(openssl rand -hex 32)
+ADMIN_EMAIL=you@example.com
+ADMIN_PASSWORD=strong-password
+EOF
+```
+
+Сохраните пароль админа — он нужен для первого входа.
+
+### Шаг 4. Запустить стек
+
+```bash
+docker compose up -d --build
+```
+
+Проверить статус:
+
+```bash
+docker compose ps
+docker compose logs app --tail 20
+```
+
+Открыть: `http://IP_СЕРВЕРА/`
+
+### Шаг 5. HTTPS без покупки домена (nip.io)
+
+Сервис `nip.io` даёт бесплатные поддомены, ведущие на ваш IP. Например, для IP `123.45.67.89` работает `https://123.45.67.89.nip.io`.
+
+Замените `Caddyfile`:
+
+```
+https://IP_СЕРВЕРА.nip.io {
+    encode gzip
+    reverse_proxy app:3000
+}
+```
+
+Перезапустите:
+
+```bash
+docker compose restart caddy
+```
+
+Caddy сам получит Let's Encrypt-сертификат. Открывайте `https://IP_СЕРВЕРА.nip.io`.
+
+### Шаг 6. Автозапуск
+
+`docker compose` с `restart: unless-stopped` поднимает контейнеры после перезагрузки VPS автоматически.
+
+---
+
+## Как дорабатывать
+
+### Добавить сценарий
+
+1. Откройте `server/scenarios.ts`.
+2. Добавьте объект в массив `SCENARIOS`:
+
+```ts
+{
+  id: 'new-case',
+  title: 'Название',
+  icon: 'fa-<иконка Font Awesome>',
+  description: 'Краткое описание',
+  crime: 'Тип преступления',
+  victim: 'Имя жертвы',
+  location: 'Место',
+  chapters: [
+    { round: 1, title: 'Глава 1', atmosphere: 'Атмосфера', text: 'Текст...' },
+    { round: 2, title: 'Глава 2', atmosphere: '...', text: '...' },
+    { round: 3, title: 'Глава 3', atmosphere: '...', text: '...' }
+  ],
+  suspects: [
+    { id: 's1', name: '...', role: '...', icon: '...', description: '...',
+      motive: '...', alibi: '...', secret: '...' },
+    { id: 's2', name: '...', role: '...', icon: '...', description: '...',
+      motive: '...', alibi: '...', secret: '...', isGuilty: true }  // ← убийца
+  ],
+  clues: [
+    { round: 1, icon: '...', type: 'фото', name: '...', desc: '...' },
+    // по 3-4 улики на раунд
+  ],
+  solution: 'Разгадка: убийца — X, потому что...'
+}
+```
+
+3. Перезапустите сервер (`npm run dev` или `docker compose restart app`). Сценарий появится в панели ведущего.
+
+### Изменить время раунда
+
+`server/engine.ts` → строка `export const ROUND_SECONDS = 600;` (600 секунд = 10 минут).
+
+### Изменить штраф/награду
+
+`server/engine.ts` → функция `nextPhase()`, блок `case 'voting'`:
+- `t.score += 500` — награда.
+- `t.score -= 200` — штраф.
+
+### Добавить ведущего
+
+Заходите как `admin` → `/admin` → форма «Создать ведущего».
+
+### Заблокировать ведущего
+
+`/admin` → кнопка «Заблокировать» напротив нужного.
+
+### Удалить ведущего
+
+Пока нет UI. Через БД:
+
+```bash
+docker compose exec db psql -U mystery -d mystery -c "DELETE FROM \"User\" WHERE email='host@test.ru';"
+```
+
+### Изменить стиль/палитру
+
+`tailwind.config.js` → цвета (`ink`, `panel`, `accent`, ...).
+
+### Заменить эффект дождя
+
+`web/RainBackground.tsx` — canvas-анимация. Параметры:
+- `Math.max(40, Math.floor(window.innerWidth / 16))` — количество капель.
+- `p.s * 2.2` — скорость.
+- `style={{ opacity: 0.55 }}` — прозрачность.
+
+### Управление озвучкой
+
+`web/SpeechContext.tsx` → `u.rate = 0.95` (скорость), `u.pitch = 1` (тон).  
+Голос — системный, из браузера. Русский голос устанавливается в настройках ОС.
+
+---
+
+## Структура проекта
+
+```
+secret-at-the-table/
+├─ Dockerfile                   # сборка production-образа
+├─ docker-compose.yml           # production: app + db + caddy
+├─ docker-compose.dev.yml       # dev: только db
+├─ Caddyfile                    # конфиг реверс-прокси
+├─ .env.example                 # пример переменных окружения
+├─ prisma/
+│  └─ schema.prisma             # структура БД
+├─ server/                      # backend
+│  ├─ index.ts                  # точка входа Fastify
+│  ├─ auth.ts                   # JWT, argon2, куки
+│  ├─ db.ts                     # Prisma Client
+│  ├─ engine.ts                 # игровая логика (фазы, очки, сброс)
+│  ├─ routes.ts                 # REST API
+│  ├─ scenarios.ts              # 3 сценария (легко добавить)
+│  └─ socket.ts                 # Socket.IO события
+└─ web/                         # frontend
+   ├─ main.tsx                  # точка входа React
+   ├─ App.tsx                   # роутинг
+   ├─ SpeechContext.tsx         # глобальная озвучка
+   ├─ RainBackground.tsx        # canvas-дождь
+   ├─ api.ts                    # fetch-обёртка
+   ├─ socket.ts                 # socket.io-client
+   ├─ ui.tsx                    # кнопки, карточки, инпуты
+   ├─ index.css                 # Tailwind + градиент
+   └─ views/
+      ├─ Landing.tsx            # лендинг
+      ├─ Login.tsx              # вход
+      ├─ Admin.tsx              # админ-панель
+      ├─ Host.tsx               # панель ведущего
+      ├─ Screen.tsx             # большой экран (QR, раунды, озвучка)
+      └─ Play.tsx               # мобильный клиент
+```
+
+---
+
+## Полезные команды
+
+### Логи
+
+```bash
+docker compose logs app -f          # логи app в реальном времени
+docker compose logs caddy --tail 50 # логи Caddy
+```
+
+### Пересборка при изменениях
+
+```bash
+docker compose up -d --build
+```
+
+### БД: запросы напрямую
+
+```bash
+docker compose exec db psql -U mystery -d mystery
+# \dt — список таблиц
+# SELECT email, role, active FROM "User";
+# \q — выход
+```
+
+### Пересоздать БД (полный сброс)
+
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+### Локальный TypeScript-чек
+
+```bash
+npx tsc --noEmit
+```
+
+---
+
+## Что дальше добавить (идеи)
+
+- Хранение игрового состояния в БД (чтобы переживало перезапуск).
+- Крон для очистки старых сессий.
+- Экспорт статистики в CSV.
+- Кастомные сценарии через админку (WYSIWYG).
+- PWA-манифест для мобильного клиента (иконка на домашнем экране).
+- Push-уведомления.
+- Yandex SpeechKit / Google TTS для более реалистичного голоса.
+- Тёмная/светлая тема.
+
+---
+
+## Лицензия
+
+MIT — используйте и модифицируйте свободно.
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "include": ["web"]
+}
+</file>
+
+<file path="tsconfig.server.json">
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "outDir": "dist/server",
+    "rootDir": "server",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "include": ["server"]
+}
+</file>
+
+<file path="vite.config.ts">
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+</file>
+
+<file path="prisma/schema.prisma">
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  HOST
+}
+
+model User {
+  id        String        @id @default(cuid())
+  email     String        @unique
+  password  String
+  role      Role
+  active    Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  sessions  GameSession[]
+}
+
+model GameSession {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  hostId    String
+  scenario  String
+  state     Json
+  status    String    @default("lobby")
+  createdAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  host    User     @relation(fields: [hostId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  players Player[]
+  teams   Team[]
+  logs    GameLog[]
+
+  @@index([code])
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  sessionId String
+  nickname  String
+  socketId  String?
+  teamId    String?
+  isCaptain Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  team    Team?       @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  sessionId String
+  name      String
+  score     Int      @default(0)
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  players Player[]
+  votes   Vote[]
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  teamId    String
+  round     Int
+  suspectId String
+  correct   Boolean?
+  createdAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+model GameLog {
+  id        String   @id @default(cuid())
+  sessionId String
+  code      String
+  level     String   @default("info")
+  event     String
+  actor     String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([sessionId])
+  @@index([code])
+  @@index([createdAt])
+  @@index([event])
+}
+
+model ScenarioEdit {
+  id        String   @id           // 'dinner' | 'manor' | 'theatre'
+  data      Json                    // патч (те же поля, что и в сценарии, но частично)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+</file>
+
+<file path="server/index.ts">
+import Fastify from 'fastify';
+import cookie from '@fastify/cookie';
+import fastifyStatic from '@fastify/static';
+import { Server } from 'socket.io';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { prisma } from './db.js';
+⋮----
+import { routes } from './routes.js';
+import { attachSocket } from './socket.js';
+⋮----
+async function bootstrap()
+</file>
+
+<file path="server/routes.ts">
+import { FastifyInstance } from 'fastify';
+import { prisma } from './db.js';
+⋮----
+import { setSession, getSession } from './socket.js';
+import { SCENARIOS } from './scenarios.js';
+import { getAllScenariosMerged, getScenarioMerged } from './scenarios-merge.js';
+⋮----
+type Level = 'info' | 'warn' | 'error';
+type LogArgs = {
+  sessionId: string;
+  code: string;
+  level?: Level;
+  event: string;
+  actor?: string | null;
+  payload?: any;
+};
+⋮----
+export async function log(args: LogArgs)
+⋮----
+export async function routes(app: FastifyInstance)
+⋮----
+// ---- Admin: monitoring ----
+⋮----
+// Считаем метрики для каждой сессии — быстро, по логам в памяти
+⋮----
+// Средняя длительность обсуждения
+⋮----
+// Голоса: правильные/всего
+⋮----
+// s3 — убийца в dinner, t4 — в theatre, v5 — в manor
+⋮----
+// Среднее время до голоса
+⋮----
+// Средний размер команды
+⋮----
+// ---- Host ----
+⋮----
+// ============================================
+// Admin: editor for scenarios
+// ============================================
+⋮----
+// Получить смерженный сценарий + признак «есть ли правки»
+⋮----
+// Сохранить правки (полная замена сценария)
+⋮----
+// Сбросить к базовой версии
+⋮----
+// Список всех сценариев (для левой колонки админки)
+⋮----
+// ============================================
+// Admin: flush scenarios edits into TS source
+// ============================================
+⋮----
+// Генерируем TS-код объекта сценария (как в scenarios.ts)
+⋮----
+// Отдаём как файл
+⋮----
+/**
+ * Сериализует объект в TS-код с отступами и правильным экранированием.
+ * Сохраняет порядок ключей, как в объекте.
+ */
+function toTsString(value: string): string
+⋮----
+// Многострочные строки (>200 символов или с \n) — через template literal,
+// чтобы не было гигантской однострочной простыни с \n
+⋮----
+// Экранируем только обратные кавычки и ${, чтобы не сломать template literal
+⋮----
+// Короткие строки — обычные одинарные кавычки
+⋮----
+function toTsObject(value: any, indent: number): string
+</file>
+
+<file path="web/landing/Cases.tsx">
+import { useEffect, useState } from 'react';
+⋮----
+type ScenarioCard = {
+  id: string;
+  no: string;
+  title: string;
+  icon: string;
+  color: string;
+  tag: string;
+  description: string;
+};
+⋮----
+function handleClick()
+⋮----
+// См. props ниже
+</file>
+
+<file path="web/landing/LoginModal.tsx">
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../api';
+⋮----
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  preferredCase?: string;
+};
+⋮----
+const onKey = (e: KeyboardEvent) =>
+⋮----
+async function submit(e: React.FormEvent)
+</file>
+
+<file path="web/landing/Nav.tsx">
+import { SITE_NAME } from './data';
+⋮----
+type Props = {
+  onCabinet: () => void;
+  onGo: (id: string) => void;
+  onTop: () => void;
+};
+</file>
+
+<file path="web/landing/ThreeScene.tsx">
+import { useEffect, useRef } from 'react';
+⋮----
+export default function ThreeScene()
+⋮----
+// ---- Стол ----
+⋮----
+// ---- Лампа ----
+⋮----
+// ---- Световой конус ----
+⋮----
+// ---- Текстура круга ----
+function dotTex()
+⋮----
+// ---- Пыль в луче ----
+⋮----
+// ---- Бумаги и лупа на столе ----
+⋮----
+// ---- Панорамное окно ----
+⋮----
+const bar = (w: number, h: number, x: number, y: number) =>
+⋮----
+// ---- Небо ----
+⋮----
+// ---- Город ----
+function cityTex(maxH: number, minH: number, body: string, cols: string[], dens: number)
+⋮----
+// ---- Дождь ----
+⋮----
+// ---- Капли на стекле ----
+⋮----
+// ---- Молния (рваная, с ветвями, свечением) ----
+⋮----
+// 3 линии с лёгким смещением — эффект «толщины» и свечения
+⋮----
+function strike(t: number)
+⋮----
+// Основная линия — рваная, сверху вниз
+⋮----
+// Пишем основную линию в буфер (сегментами)
+⋮----
+// Ветви от каждой 3-й точки
+⋮----
+// ---- Размер ----
+function resize()
+⋮----
+const onMove = (e: PointerEvent) =>
+⋮----
+function animate()
+</file>
+
+<file path="web/screens/FinalScene.tsx">
+{/* Бумаги и фото на столе */}
+⋮----
+{/* Бумага, свисающая со стола */}
+⋮----
+{/* Бумаги и фото на полу */}
+</file>
+
+<file path="web/screens/index.ts">
+
+</file>
+
+<file path="web/screens/MariaScene.tsx">
+{/* CSS-анимации для дыма и пыли (взяты из макета) */}
+⋮----
+{/* Затенение как в макете */}
+</file>
+
+<file path="web/screens/ViktorScene.tsx">
+export default function ViktorScene()
+⋮----
+{/* Машина (как в макете) */}
+⋮----
+{/* Используем одинаковую машину 4 раза, как в макете */}
+</file>
+
+<file path="web/views/Admin.tsx">
+import { useEffect, useState } from 'react';
+import { api } from '../api';
+import { Card, Input, PrimaryBtn, Btn } from '../ui';
+⋮----
+// ============================================================
+// TYPES
+// ============================================================
+⋮----
+type Host = { id: string; email: string; active: boolean; createdAt: string };
+⋮----
+type SessionRow = {
+  id: string; code: string; scenario: string; status: string;
+  createdAt: string; endedAt: string | null;
+  hostEmail: string | null; playersCount: number; logsCount: number;
+};
+⋮----
+type LogRow = {
+  id: string; level: string; event: string; actor: string | null;
+  payload: any; createdAt: string;
+};
+⋮----
+type ScenarioListItem = {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  hasEdit: boolean;
+  updatedAt: string | null;
+};
+⋮----
+// ============================================================
+// ROOT
+// ============================================================
+⋮----
+onClick=
+⋮----
+// ============================================================
+// HOSTS
+// ============================================================
+⋮----
+const load = ()
+⋮----
+async function create(e: React.FormEvent)
+async function toggle(id: string)
+⋮----
+onChange=
+⋮----
+// ============================================================
+// LOGS
+// ============================================================
+⋮----
+async function openSession(s: SessionRow)
+⋮----
+// ============================================================
+// SCENARIOS
+// ============================================================
+⋮----
+async function loadList()
+⋮----
+async function openScenario(id: string)
+⋮----
+async function save()
+⋮----
+async function reset()
+⋮----
+async function downloadTs()
+⋮----
+{/* Левая колонка */}
+⋮----
+{/* Правая колонка */}
+⋮----
+// ============================================================
+// JSON EDITOR (recursive)
+// ============================================================
+⋮----
+// String
+⋮----
+// Number / Boolean
+⋮----
+// Array
+⋮----
+// Спец-обработка: массив строк (eliminationOrder и т.п.) — с ↑↓
+⋮----
+const move = (from: number, dir: -1 | 1) =>
+⋮----
+// Обычный массив объектов
+⋮----
+onChange(value.filter((_, j)
+⋮----
+// Object
+</file>
+
+<file path="web/views/Landing.tsx">
+import LandingPage from '../landing/Landing';
+⋮----
+export default function Landing()
+</file>
+
+<file path="web/index.css">
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+⋮----
+html, body {
+⋮----
+body::before {
+⋮----
+h1, h2, h3 {
+⋮----
+.mono { font-family: 'Courier Prime', monospace; }
+</file>
+
+<file path="web/main.tsx">
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import App from './App';
+import { SpeechProvider } from './SpeechContext';
+import { AudioProvider } from './audio';
+</file>
+
+<file path="web/socket.ts">
+import { io, Socket } from 'socket.io-client';
+⋮----
+export function getSocket(): Socket
+</file>
+
+<file path="web/SpeechContext.tsx">
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+⋮----
+type SpeechOptions = {
+  rate?: number;
+  pitch?: number;
+  voice?: string;
+};
+⋮----
+type SpeechContextType = {
+  speak: (text: string, opts?: SpeechOptions) => void;
+  stop: () => void;
+  speaking: boolean;
+  enabled: boolean;
+  setEnabled: (v: boolean) => void;
+  supported: boolean;
+};
+⋮----
+function pickVoice(voices: SpeechSynthesisVoice[], hint?: string): SpeechSynthesisVoice | null
+⋮----
+function splitIntoChunks(text: string): string[]
+⋮----
+// Разбиваем по предложениям — точка, восклицание, вопрос, многоточие.
+⋮----
+// Если одно предложение слишком длинное (>200 символов), режем по запятым.
+⋮----
+export function SpeechProvider(
+⋮----
+const speakChunk = (idx: number) =>
+⋮----
+// небольшая пауза между предложениями
+⋮----
+// Первую фразу — с небольшой задержкой, чтобы голос «прогрелся»
+⋮----
+export function useSpeech()
+</file>
+
+<file path="docker-compose.dev.yml">
+name: secret-at-the-table-dev
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mystery
+      POSTGRES_PASSWORD: mystery
+      POSTGRES_DB: mystery
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mystery"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+</file>
+
+<file path="package.json">
+{
+  "name": "secret-at-the-table",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:web": "vite",
+    "build": "vite build && tsc -p tsconfig.server.json",
+    "start": "node dist/server/index.js",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^10.0.1",
+    "@fastify/static": "^8.0.3",
+    "@prisma/client": "^6.2.1",
+    "argon2": "^0.41.1",
+    "fastify": "^5.2.0",
+    "jsonwebtoken": "^9.0.2",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.2",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@types/three": "^0.186.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "postcss": "^8.4.49",
+    "prisma": "^6.2.1",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  }
+}
+</file>
+
+<file path="tailwind.config.js">
+// старые (для игры)
+⋮----
+// новые (для лендинга)
+</file>
+
+<file path="web/landing/data.ts">
+// ============================================================
+// Все тексты и данные лендинга — меняй здесь
+// ============================================================
+⋮----
+export type Photo = { src: string; t: string; m: string; cls?: string };
+export type Video = { t: string; m: string; poster: number; src: string };
+export type Review = { stars: number; text: string; name: string; role: string; initials: string };
+export type Step = { n: string; title: string; text: string };
+export type Feature = { icon: string; title: string; text: string };
+export type NumberItem = { to: number; suf?: string; label: string; dark?: boolean };
+⋮----
+// --- Мета ---
+⋮----
+// --- Hero ---
+⋮----
+// --- Как это работает ---
+⋮----
+// --- Почему это круто ---
+⋮----
+// --- Цифры ---
+⋮----
+// --- Фото (пока заглушки — замени на свои) ---
+const PH = (id: string)
+⋮----
+// --- Видео (пока пусто — показывается фото-репортаж) ---
+⋮----
+// --- Отзывы ---
+⋮----
+// --- Ресторанам ---
+⋮----
+// --- Финал ---
+⋮----
+// --- Footer ---
+⋮----
+// ============================================================
+// Игровые константы (для экранов лобби, главы, обсуждения)
+// ============================================================
+⋮----
+// Правила игры — для экрана «Дело открыто» (brief)
+⋮----
+// Подсказка внизу «Дело открыто»
+</file>
+
+<file path="index.html">
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Тайна за столом</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400;1,500&family=Manrope:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Courier+Prime:wght@400;700&family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=IBM+Plex+Mono:wght@400;500&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" />
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/web/main.tsx"></script>
+</body>
+</html>
+</file>
+
+<file path="server/scenarios.ts">
+export type Clue = {
+  round: number;
+  icon: string;
+  type: string;
+  name: string;
+  desc: string;
+  audioUrl?: string;
+};
+⋮----
+export type Suspect = {
+  id: string;
+  name: string;
+  role: string;
+  icon: string;
+  description: string;
+  motive: string;
+  alibi: string;
+  secret: string;
+  isGuilty?: boolean;
+  verdict?: string;
+  verdictAudioUrl?: string;
+};
+⋮----
+export type Chapter = {
+  round: number;
+  title: string;
+  atmosphere: string;
+  text: string;
+  bg?: string;
+  audioUrl?: string;
+};
+⋮----
+export type Scenario = {
+  id: string;
+  title: string;
+  icon: string;
+  description: string;
+  crime: string;
+  victim: string;
+  location: string;
+  bg: string;
+  chapters: Chapter[];
+  suspects: Suspect[];
+  clues: Clue[];
+  solution: string;
+  solutionAudioUrl?: string;
+  rulesAudioUrl?: string;
+  eliminationOrder?: string[];
+  killerId?: string;
+};
+⋮----
+// Скопируй этот объект в server/scenarios.ts, заменив существующий с id="manor"
+// и запусти: git add server/scenarios.ts && git commit -m "chore(scenarios): sync manor from admin"
+</file>
+
+<file path="web/landing/Landing.tsx">
+import { useEffect, useState } from 'react';
+import ThreeScene from './ThreeScene';
+import LoginModal from './LoginModal';
+⋮----
+type ScenarioCard = {
+  id: string;
+  no: string;
+  title: string;
+  icon: string;
+  color: string;
+  tag: string;
+  description: string;
+};
+⋮----
+const openCase = ()
+⋮----
+{/* HERO */}
+⋮----
+{/* CASES */}
+</file>
+
+<file path="web/views/Host.tsx">
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { api } from '../api';
+import { Btn } from '../ui';
+⋮----
+type Scen = {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+};
+⋮----
+type SessionRow = {
+  id: string;
+  code: string;
+  scenario: string;
+  status: string;
+  createdAt: string;
+};
+⋮----
+// Автоподстановка выбранного на лендинге дела
+⋮----
+const loadSessions = ()
+⋮----
+async function createSession()
+⋮----
+async function logout()
+</file>
+
+<file path="web/RainBackground.tsx">
+import { useEffect, useRef } from 'react';
+⋮----
+export default function RainBackground(
+⋮----
+// Локальные ссылки, чтобы TypeScript не ругался на null в замыканиях
+⋮----
+// ========== ДОЖДЬ ==========
+⋮----
+// ========== МОЛНИИ ==========
+type Bolt = {
+      pts: [number, number][];
+      branches: [number, number][][];
+      life: number;
+    };
+⋮----
+function resize()
+⋮----
+function makeBolt(): Bolt
+⋮----
+// Основная линия: рваная, сверху вниз
+⋮----
+// Ветви от каждой 3-й точки
+⋮----
+function strike(power: number)
+⋮----
+// ========== АНИМАЦИЯ ==========
+⋮----
+function loop(now: number)
+⋮----
+if (bolt) bolt.life -= 0.9; // затухание
+⋮----
+// ========== РИСУЕМ ==========
+⋮----
+// Дождь
+⋮----
+// Молния — рваная, с ветвями и свечением
+⋮----
+// Основная линия
+⋮----
+// Ветви
+</file>
+
+<file path="web/App.tsx">
+import { useState } from 'react';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import RainBackground from './RainBackground';
+import ThunderSound from './ThunderSound';
+import Landing from './views/Landing';
+import Admin from './views/Admin';
+import Host from './views/Host';
+import Screen from './views/Screen';
+import Play from './views/Play';
+⋮----
+export default function App()
+⋮----
+</file>
+
+<file path="server/socket.ts">
+import { Server } from 'socket.io';
+import { prisma } from './db.js';
+⋮----
+import { log } from './routes.js';
+⋮----
+function stopClueTimer(code: string)
+⋮----
+function broadcastState(io: Server, code: string, ns: E.GameState)
+⋮----
+async function persistState(code: string, ns: E.GameState)
+⋮----
+function startClueTimer(io: Server, code: string)
+⋮----
+export function attachSocket(io: Server)
+⋮----
+export function getSession(code: string)
+⋮----
+export function setSession(code: string, s: E.GameState)
+</file>
+
+<file path="server/engine.ts">
+import { SCENARIOS, Scenario } from './scenarios.js';
+⋮----
+export type Phase = 'lobby' | 'intro' | 'story' | 'discussion' | 'voting' | 'results' | 'results-final' | 'end';
+⋮----
+export type TeamState = {
+  id: string;
+  name: string;
+  score: number;
+  captainId: string | null;
+  captainName: string | null;
+  vote: string | null;
+  joinedAt: number;
+  roundScores: number[];
+};
+⋮----
+export type GameState = {
+  code: string;
+  scenarioId: string;
+  scenarioData?: Scenario;
+  phase: Phase;
+  round: number;
+  totalRounds: number;
+  revealedClues: number[];
+  teams: TeamState[];
+  eliminatedSuspects: string[];
+  lastResult: any | null;
+  roundStartedAt: number | null;
+  roundDurationSec: number;
+  finishedAt: number | null;
+  roundPausedAt: number | null;
+  roundPausedTotalMs: number;
+};
+⋮----
+export function createInitialState(code: string, scenarioId: string): GameState
+⋮----
+export const scenarioOf = (s: GameState): Scenario
+⋮----
+export function generateCode(): string
+⋮----
+function pickElimination(s: GameState): string | null
+⋮----
+// ===== Строгий порядок, если задан в сценарии =====
+⋮----
+// защита от случайного выбывания убийцы
+⋮----
+// ===== Иначе — по голосам =====
+⋮----
+export function nextPhase(s: GameState): GameState
+⋮----
+ns.roundDurationSec = 900; // 15 минут
+⋮----
+// 4-й раунд → сначала results (Виктор), потом end
+⋮----
+// Раскрываем все улики прошлых раундов
+⋮----
+// Раунд 1 — 15 минут (из case 'intro'), раунды 2-4 — 10 минут
+⋮----
+// По кнопке «Итоги расследования» ведущий переходит на финальный экран
+⋮----
+// финальный экран — уже никуда не идём
+⋮----
+export function prevPhase(s: GameState): GameState
+⋮----
+export function resetSession(s: GameState): GameState
+⋮----
+export function publicState(s: GameState, opts:
+⋮----
+export function revealClue(s: GameState, clueIndex: number): GameState
+</file>
+
+<file path="web/views/Play.tsx">
+import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { getSocket } from '../socket';
+import { useSpeech } from '../SpeechContext';
+⋮----
+// ============================================================
+// УТИЛИТЫ
+// ============================================================
+⋮----
+const initials = (n: string)
+⋮----
+const fmt = (s: number) =>
+⋮----
+// ============================================================
+// RAIN CANVAS
+// ============================================================
+⋮----
+function RainCanvas(
+⋮----
+type Drop = { x: number; y: number; l: number; s: number; a: number };
+⋮----
+type Bolt = { x1: number; y1: number; x2: number; y2: number };
+⋮----
+function resize()
+function mk(): Drop
+⋮----
+function makeBolt()
+⋮----
+function branch(sx: number, sy: number, length: number, dir: number, depth: number)
+⋮----
+function loop(now: number)
+⋮----
+// ============================================================
+// ГЛАВНЫЙ КОМПОНЕНТ
+// ============================================================
+⋮----
+const trace = (event: string, data?: any) =>
+⋮----
+const onState = (st: any) =>
+⋮----
+const onKill = () =>
+⋮----
+function join()
+⋮----
+function vote(suspectId: string)
+⋮----
+// ============================================================
+// ЭКРАН 1: ВХОД
+// ============================================================
+⋮----
+function copy()
+⋮----
+function submit(e: React.FormEvent)
+⋮----
+onChange=
+⋮----
+// ============================================================
+// ЭКРАН 2: ЛОББИ
+// ============================================================
+⋮----
+// ============================================================
+// ЭКРАН 3: INTRO
+// ============================================================
+⋮----
+// ============================================================
+// ЭКРАН 4: STORY
+// ============================================================
+⋮----
+// ============================================================
+// ЭКРАН 5: DISCUSSION
+// ============================================================
+⋮----
+// ============================================================
+// ЭКРАН 6: VOTING
+// ============================================================
+⋮----
+function select(i: number)
+⋮----
+function submit()
+⋮----
+// ============================================================
+// ЭКРАН 7: ГОЛОС ПРИНЯТ
+// ============================================================
+⋮----
+// ============================================================
+// ЭКРАН 8: RESULTS (заглушка на клиенте)
+// ============================================================
+⋮----
+// ============================================================
+// ЭКРАН 9: END
+// ============================================================
+⋮----
+0:
+</file>
+
+<file path="web/views/Screen.tsx">
+import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import QRCode from 'qrcode';
+import { getSocket } from '../socket';
+import { useSpeech } from '../SpeechContext';
+import { useAudio, useAudioButton } from '../audio';
+import { ROMAN, GAME_RULES, GAME_NOTE, REVEAL_MARKS, ROUND_SECONDS } from '../landing/data';
+import {
+  IntroScene,
+  Chapter1Scene,
+  Chapter2Scene,
+  Chapter3Scene,
+  FinalScene,
+  OlegScene,
+  DmitryScene,
+  MariaScene,
+  ViktorScene,
+  ElenaScene
+} from '../screens';
+⋮----
+const fmt = (s: number) =>
+⋮----
+const pad = (n: number)
+⋮----
+const initials = (n: string)
+⋮----
+const trace = (event: string, data?: any) =>
+⋮----
+// Останавливать озвучку при смене фазы
+⋮----
+const onState = (st: any)
+⋮----
+const advance = () =>
+⋮----
+const goBack = () =>
+const togglePause = () =>
+⋮----
+const reset = () =>
+⋮----
+{/* SVG-сцены показываем только для сценария 'dinner' — для остальных фон из bgUrl */}
+⋮----
+onConfirm=
+⋮----
+// ============================================================
+// HEADER
+// ============================================================
+⋮----
+onClick=
+⋮----
+// ============================================================
+// LOBBY
+// ============================================================
+⋮----
+// ============================================================
+// INTRO (кнопка «Озвучить правила» — справа над списком)
+// ============================================================
+⋮----
+// ============================================================
+// STORY
+// ============================================================
+⋮----
+// ============================================================
+// CLUE AUDIO BUTTON
+// ============================================================
+⋮----
+// ============================================================
+// DISCUSSION
+// ============================================================
+⋮----
+const playAll = () =>
+⋮----
+// ============================================================
+// FINAL VERDICT CARD (зелёный штамп + озвучка)
+// ============================================================
+⋮----
+// ============================================================
+// KILLER CARD (красный штамп + озвучка)
+// ============================================================
+⋮----
+// ============================================================
+// RESULTS
+// ============================================================
+⋮----
+// ============================================================
+// END
+// ============================================================
+⋮----
+trace?.('show_results_click',
+if (onShowResults) onShowResults();
+⋮----
+// ============================================================
+// ACCUSE MODAL
+// ============================================================
+⋮----
+const onKey = (e: KeyboardEvent) =>
+⋮----
+// ============================================================
+// RESULTS FINAL
+// ============================================================
+⋮----
+const fmtScore = (n: number) => (n > 0 ? `+$
+</file>
+
+</files>

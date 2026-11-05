@@ -2,6 +2,12 @@ import { SCENARIOS, Scenario } from './scenarios.js';
 
 export type Phase = 'lobby' | 'intro' | 'story' | 'discussion' | 'voting' | 'results' | 'results-final' | 'end';
 
+export type TeamPlayer = {
+  socketId: string;
+  nickname: string;
+  joinedAt: number;
+};
+
 export type TeamState = {
   id: string;
   name: string;
@@ -11,11 +17,13 @@ export type TeamState = {
   vote: string | null;
   joinedAt: number;
   roundScores: number[];
+  players: TeamPlayer[];
 };
 
 export type GameState = {
   code: string;
   scenarioId: string;
+  scenarioData?: Scenario;
   phase: Phase;
   round: number;
   totalRounds: number;
@@ -28,6 +36,7 @@ export type GameState = {
   finishedAt: number | null;
   roundPausedAt: number | null;
   roundPausedTotalMs: number;
+  votingStartedAt: number | null;
 };
 
 export const ROUND_SECONDS = 600;
@@ -50,12 +59,13 @@ export function createInitialState(code: string, scenarioId: string): GameState 
     roundDurationSec: ROUND_SECONDS,
     finishedAt: null,
     roundPausedAt: null,
-    roundPausedTotalMs: 0
+    roundPausedTotalMs: 0,
+    votingStartedAt: null
   };
 }
 
 export const scenarioOf = (s: GameState): Scenario =>
-  SCENARIOS.find(x => x.id === s.scenarioId) || SCENARIOS[0];
+  s.scenarioData || SCENARIOS.find(x => x.id === s.scenarioId) || SCENARIOS[0];
 
 export function generateCode(): string {
   const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -64,7 +74,7 @@ export function generateCode(): string {
 
 function pickElimination(s: GameState): string | null {
   const sc = scenarioOf(s);
-  const killerId = sc.suspects.find(x => x.isGuilty)?.id;
+  const killerId = sc.killerId ?? sc.suspects.find(x => x.isGuilty)?.id;
   const alive = sc.suspects.filter(x => !s.eliminatedSuspects.includes(x.id));
   const nonKiller = alive.filter(x => x.id !== killerId);
   if (nonKiller.length <= 1) return null;
@@ -108,7 +118,7 @@ export function nextPhase(s: GameState): GameState {
       ns.phase = 'story';
       ns.round = 1;
       ns.roundStartedAt = Date.now();
-      ns.roundDurationSec = 900; // 15 минут
+      ns.roundDurationSec = 600; // 10 минут
       break;
     case 'story':
       ns.phase = 'discussion';
@@ -117,8 +127,17 @@ export function nextPhase(s: GameState): GameState {
     case 'discussion':
       ns.phase = 'voting';
       ns.teams.forEach(t => (t.vote = null));
+      ns.votingStartedAt = Date.now();
       break;
     case 'voting': {
+            // ===== Штраф за пропуск голосования =====
+      ns.teams.forEach(t => {
+        if (!t.vote) {
+          t.score -= 100;
+          if (!t.roundScores) t.roundScores = [0, 0, 0, 0];
+          t.roundScores[ns.round - 1] = -100;
+        }
+      });
       const result: any = {
         round: ns.round,
         perTeam: [],
@@ -126,9 +145,9 @@ export function nextPhase(s: GameState): GameState {
         wrongTeamIds: [] as string[],
         eliminatedId: null as string | null
       };
-      const killer = sc.suspects.find(x => x.isGuilty)!;
+      const killerId = sc.killerId ?? sc.suspects.find(x => x.isGuilty)?.id;
       ns.teams.forEach(t => {
-        const correct = t.vote === killer.id;
+        const correct = t.vote === killerId;
         const isFinal = ns.round >= ns.totalRounds;
         let roundScore = 0;
         if (correct) {
@@ -137,7 +156,10 @@ export function nextPhase(s: GameState): GameState {
           result.correctTeamIds.push(t.id);
         }
         if (!t.roundScores) t.roundScores = [0, 0, 0, 0];
-        t.roundScores[ns.round - 1] = roundScore;
+        // Не затираем штраф за пропуск
+        if (t.vote !== null) {
+          t.roundScores[ns.round - 1] = roundScore;
+        }
         result.perTeam.push({ teamId: t.id, vote: t.vote, correct });
       });
 
@@ -153,10 +175,8 @@ export function nextPhase(s: GameState): GameState {
         ns.phase = 'results';
         ns.round = 4;
       }
+      ns.votingStartedAt = null;
       ns.lastResult = result;
-      break;
-      ns.lastResult = result;
-      ns.phase = 'results';
       break;
     }
     case 'results':
@@ -173,8 +193,10 @@ export function nextPhase(s: GameState): GameState {
         ns.phase = 'story';
         ns.round += 1;
         ns.roundStartedAt = Date.now();
-        // Раунд 1 — 15 минут (из case 'intro'), раунды 2-4 — 10 минут
-        ns.roundDurationSec = 600;
+        // Раунд 1 — 10 минут (из case 'intro'),
+        // раунды 2-3 — 10 минут,
+        // раунд 4 (финал) — 5 минут
+        ns.roundDurationSec = ns.round >= ns.totalRounds ? 300 : 600;
       }
       break;
     case 'end':
@@ -228,19 +250,8 @@ export function prevPhase(s: GameState): GameState {
 }
 
 export function resetSession(s: GameState): GameState {
-  return {
-    ...createInitialState(s.code, s.scenarioId),
-    teams: s.teams.map(t => ({
-      id: t.id,
-      name: t.name,
-      score: 0,
-      captainId: t.captainId,
-      captainName: t.captainName,
-      vote: null,
-      joinedAt: t.joinedAt,
-      roundScores: [0, 0, 0, 0]
-    }))
-  };
+  // Полный сброс: убираем все столы и участников — игра начинается с нуля
+  return createInitialState(s.code, s.scenarioId);
 }
 
 export function publicState(s: GameState, opts: { revealSolution: boolean }) {
@@ -258,6 +269,8 @@ export function publicState(s: GameState, opts: { revealSolution: boolean }) {
     roundDurationSec: s.roundDurationSec,
     roundPausedAt: s.roundPausedAt,
     roundPausedTotalMs: s.roundPausedTotalMs,
+    votingStartedAt: s.votingStartedAt,
+    votingDurationSec: 60,
     clueTimesSec: CLUE_TIMES_SEC,
     eliminatedSuspects: s.eliminatedSuspects,
     lastResult: s.lastResult,
@@ -269,6 +282,9 @@ export function publicState(s: GameState, opts: { revealSolution: boolean }) {
       victim: sc.victim,
       location: sc.location,
       bg: sc.bg,
+      rulesAudioUrl: sc.rulesAudioUrl,
+      solutionAudioUrl: sc.solutionAudioUrl,
+      eliminationOrder: sc.eliminationOrder,
       suspects: sc.suspects.map(({ secret, ...rest }) => rest),
       clues: sc.clues
     },
@@ -279,6 +295,7 @@ export function publicState(s: GameState, opts: { revealSolution: boolean }) {
   if (opts.revealSolution) {
     base.solution = sc.solution;
     base.fullSuspects = sc.suspects;
+    base.killerId = sc.killerId;
   }
   return base;
 }

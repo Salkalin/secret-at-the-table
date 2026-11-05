@@ -18,6 +18,16 @@ import {
   ElenaScene
 } from '../screens';
 
+import {
+  ManorIntroScene,
+  ManorChapter1Scene,
+  ManorChapter2Scene,
+  ManorChapter3Scene
+} from '../screens/manor';
+
+import { ManorHtmlScene } from '../screens/manor/ManorHtmlScene';
+import { MANOR_INTRO_HTML, MANOR_CH1_HTML, MANOR_CH2_HTML, MANOR_CH3_HTML } from '../screens/manor/html-sources';
+
 const fmt = (s: number) => {
   s = Math.max(0, s);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -54,10 +64,16 @@ export default function Screen() {
     if (!state) return;
     const sc = state.scenario;
     const ch = state.chapter;
+    const isManor = sc?.id === 'manor';
+    // Для manor используем SVG-сцены — bgUrl не нужен
+    if (isManor) {
+      setBgUrl('');
+      return;
+    }
     const showBg = ['intro', 'story'].includes(state.phase);
     const url = showBg ? ch?.bg || sc?.bg || '' : '';
     setBgUrl(url);
-  }, [state?.phase, state?.round, state?.chapter?.bg, state?.scenario?.bg]);
+  }, [state?.phase, state?.round, state?.chapter?.bg, state?.scenario?.bg, state?.scenario?.id]);
 
   // Останавливать озвучку при смене фазы
   const prevPhaseRef = useRef<string | null>(null);
@@ -152,8 +168,9 @@ export default function Screen() {
   const eliminated: string[] = eliminatedSuspects || [];
   const aliveSuspects = scenario.suspects.filter((s: any) => !eliminated.includes(s.id));
 
-  return (
-    <div className="min-h-screen p-6 md:p-8 max-w-[1200px] mx-auto">
+return (
+  <div className="min-h-screen p-6 md:p-8 max-w-[1200px] mx-auto">
+
       {bgUrl && (
         <div
           className="fixed inset-0 -z-20 transition-opacity duration-700"
@@ -166,16 +183,26 @@ export default function Screen() {
         />
       )}
 
-      {phase === 'intro' && <IntroScene />}
-      {phase === 'story' && round === 1 && <Chapter1Scene />}
-      {phase === 'story' && round === 2 && <Chapter2Scene />}
-      {phase === 'story' && round === 3 && <Chapter3Scene />}
-      {phase === 'story' && round >= 4 && <FinalScene />}
-      {phase === 'results' && round === 1 && <OlegScene />}
-      {phase === 'results' && round === 2 && <DmitryScene />}
-      {phase === 'results' && round === 3 && <MariaScene />}
-      {phase === 'results' && round >= 4 && <ViktorScene />}
-      {phase === 'end' && <ElenaScene />}
+      {/* SVG-сцены показываем только для сценария 'dinner' — для остальных фон из bgUrl */}
+      {scenario.id === 'dinner' && (
+        <>
+          {phase === 'intro' && <IntroScene />}
+          {phase === 'story' && round === 1 && <Chapter1Scene />}
+          {phase === 'story' && round === 2 && <Chapter2Scene />}
+          {phase === 'story' && round === 3 && <Chapter3Scene />}
+          {phase === 'story' && round >= 4 && <FinalScene />}
+          {phase === 'results' && round === 1 && <OlegScene />}
+          {phase === 'results' && round === 2 && <DmitryScene />}
+          {phase === 'results' && round === 3 && <MariaScene />}
+          {phase === 'results' && round >= 4 && <ViktorScene />}
+          {phase === 'end' && <ElenaScene />}
+        </>
+      )}
+      {scenario.id === 'manor' && phase === 'intro' && <ManorHtmlScene html={MANOR_INTRO_HTML} />}
+      {scenario.id === 'manor' && phase === 'story' && round === 1 && <ManorHtmlScene html={MANOR_CH1_HTML} />}
+      {scenario.id === 'manor' && phase === 'story' && round === 2 && <ManorHtmlScene html={MANOR_CH2_HTML} />}
+      {scenario.id === 'manor' && phase === 'story' && round === 3 && <ManorHtmlScene html={MANOR_CH3_HTML} />}
+      {scenario.id === 'manor' && phase === 'story' && round >= 4 && <FinalScene />}
 
       <Header
         phase={phase}
@@ -186,6 +213,10 @@ export default function Screen() {
         cluesCount={clues.length}
         speech={speech}
       />
+      {/* ⬇ ОТКРЫВАЕМ ОБЁРТКУ ⬇ */}
+      <div
+
+      >
 
       {phase === 'lobby' && (
         <Lobby
@@ -244,12 +275,24 @@ export default function Screen() {
               Капитаны команд выбирают подозреваемого <b>на своих телефонах</b>.
             </p>
             <div className="mt-4 text-2xl font-mono text-accent tabular-nums">
-              <VotingCountdown />
+              <VotingCountdown
+                votingStartedAt={state.votingStartedAt}
+                duration={state.votingDurationSec || 60}
+              />
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-[1200px] mx-auto mb-10">
-            {aliveSuspects.map((s: any) => (
+<div
+  className={
+    'grid gap-4 mx-auto mb-10 ' +
+    (aliveSuspects.length === 1
+      ? 'grid-cols-1 max-w-md'
+      : aliveSuspects.length === 2
+      ? 'grid-cols-1 md:grid-cols-2 max-w-2xl'
+      : 'md:grid-cols-2 lg:grid-cols-3 max-w-[1200px]')
+  }
+>
+  {aliveSuspects.map((s: any) => (
               <div
                 key={s.id}
                 className="bg-panel border border-line rounded-2xl p-5 flex flex-col"
@@ -299,6 +342,8 @@ export default function Screen() {
           result={lastResult}
           teams={teams}
           suspects={scenario.suspects}
+          eliminated={eliminated}
+          eliminationOrder={scenario.eliminationOrder}
           advance={advance}
           round={round}
           totalRounds={totalRounds}
@@ -327,7 +372,7 @@ export default function Screen() {
           trace={trace}
         />
       )}
-
+      </div>
       {accuseOpen && phase === 'discussion' && (
         <AccuseModal
           suspects={aliveSuspects}
@@ -919,9 +964,7 @@ function Discussion({
                   <ClueAudioButton url={c.audioUrl} />
                 </div>
                 <p className="m-0 flex-1 font-mono text-[13px] leading-relaxed text-[#3a281c]">{c.desc}</p>
-                <small className="mt-3.5 pt-3 border-t border-dashed border-[rgba(42,28,20,.22)] text-[10px] tracking-[.16em] uppercase text-[#8a6a52] font-bold">
-                  Глава {ROMAN[c.round - 1] || c.round} · открыта на {fmt(markTime)}
-                </small>
+
               </div>
             );
           }
@@ -1287,22 +1330,57 @@ function KillerCard({ suspect }: { suspect: any }) {
 // RESULTS
 // ============================================================
 
-function Results({ result, suspects, advance, round, totalRounds, busy }: any) {
+function Results({
+  result,
+  suspects,
+  eliminated,
+  eliminationOrder,
+  advance,
+  round,
+  totalRounds,
+  busy
+}: any) {
   const elimId = result?.eliminatedId;
   const safeSuspects = suspects || [];
+  const safeEliminated: string[] = eliminated || [];
   const elimSuspect = elimId ? safeSuspects.find((s: any) => s.id === elimId) : null;
   const isLast = round >= totalRounds;
 
   if (isLast) {
-    const viktor = suspects.find((s: any) => s.id === 's5') || {
-      id: 's5', name: 'Виктор', role: 'Бывший партнёр', icon: 'fa-briefcase', verdict: ''
-    };
+    const killerId = safeSuspects.find((s: any) => s.isGuilty)?.id;
+
+    // 1) Последний в eliminationOrder — по канону именно он "последний не убийца"
+    const lastInOrder =
+      Array.isArray(eliminationOrder) && eliminationOrder.length > 0
+        ? eliminationOrder[eliminationOrder.length - 1]
+        : null;
+
+    // 2) Fallback: единственный живой не-убийца
+    const aliveNonKillers = safeSuspects.filter(
+      (s: any) => s.id !== killerId && !safeEliminated.includes(s.id)
+    );
+
+    // 3) Крайний fallback: последний не-убийца в массиве
+    const anyNonKiller = [...safeSuspects].reverse().find((s: any) => s.id !== killerId);
+
+    const lastId = lastInOrder || aliveNonKillers[0]?.id || anyNonKiller?.id;
+    const lastSuspect =
+      safeSuspects.find((s: any) => s.id === lastId) ||
+      aliveNonKillers[0] ||
+      anyNonKiller || {
+        id: '-',
+        name: '—',
+        role: '',
+        icon: 'fa-user',
+        verdict: ''
+      };
+
     return (
       <div>
         <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-8">
           Вердикт следствия
         </h2>
-        <FinalVerdictCard suspect={viktor} />
+        <FinalVerdictCard suspect={lastSuspect} />
         <button
           onClick={advance}
           disabled={busy}
@@ -1505,12 +1583,29 @@ function AccuseModal({
   );
 }
 
-function VotingCountdown() {
-  const [left, setLeft] = useState(30);
+function VotingCountdown({
+  votingStartedAt,
+  duration = 60
+}: {
+  votingStartedAt?: number | null;
+  duration?: number;
+}) {
+  const [left, setLeft] = useState(() => {
+    if (!votingStartedAt) return duration;
+    return Math.max(0, duration - Math.floor((Date.now() - votingStartedAt) / 1000));
+  });
   useEffect(() => {
-    const t = setInterval(() => setLeft(l => Math.max(0, l - 1)), 1000);
+    if (!votingStartedAt) {
+      setLeft(duration);
+      return;
+    }
+    const tick = () => {
+      setLeft(Math.max(0, duration - Math.floor((Date.now() - votingStartedAt) / 1000)));
+    };
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [votingStartedAt, duration]);
   return <span>0:{String(left).padStart(2, '0')}</span>;
 }
 

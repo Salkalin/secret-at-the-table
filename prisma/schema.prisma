@@ -154,3 +154,10 @@ model GameLog {
   @@index([createdAt])
   @@index([event])
 }
+
+model ScenarioEdit {
+  id        String   @id           // 'dinner' | 'manor' | 'theatre'
+  data      Json                    // патч (те же поля, что и в сценарии, но частично)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}

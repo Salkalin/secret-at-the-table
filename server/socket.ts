@@ -117,7 +117,7 @@ export function attachSocket(io: Server) {
       cb?.({ state: E.publicState(s, { revealSolution: false }) });
     });
 
-    socket.on('player:join', async (payload: { code: string; nickname: string; wantCaptain: boolean; reconnectTeamId?: string }, cb?: any) => {
+    socket.on('player:join', async (payload: { code: string; nickname: string; wantCaptain: boolean; reconnectTeamId?: string; targetTeamId?: string }, cb?: any) => {
       const { code, nickname, wantCaptain, reconnectTeamId } = payload;
       const s = sessions.get(code);
       if (!s) return cb?.({ error: 'not_found' });
@@ -155,23 +155,79 @@ export function attachSocket(io: Server) {
       }
 
       if (wantCaptain) {
+        // ===== Защита от дубликата названия стола =====
+        const wantedName = nickname.trim();
+        const normalized = wantedName.toLowerCase();
+        const duplicate = s.teams.find(
+          t =>
+            t.name.trim().toLowerCase() === normalized ||
+            t.name
+              .trim()
+              .toLowerCase()
+              .replace(/\s*\(стол\)$/i, '') === normalized
+        );
+        if (duplicate) {
+          return cb?.({ error: 'duplicate_name' });
+        }
+
         const id = Math.random().toString(36).slice(2, 10);
         s.teams.push({
           id,
-          name: nickname + ' (стол)',
+          name: wantedName,
           score: 0,
           captainId: socket.id,
-          captainName: nickname,
+          captainName: wantedName,
           vote: null,
           joinedAt: Date.now(),
-          roundScores: [0, 0, 0, 0]
+          roundScores: [0, 0, 0, 0],
+          players: [
+            { socketId: socket.id, nickname: wantedName, joinedAt: Date.now() }
+          ]
         });
         teamId = id;
         isCaptain = true;
       } else {
-        const t = s.teams.find(t => t.captainId) || s.teams[0];
+        // ===== Целевой стол (если выбран на экране picker) =====
+        const targetTeamId = (payload as any).targetTeamId as string | undefined;
+
+        // Нельзя переключаться после старта игры
+        if (s.phase !== 'lobby') {
+          return cb?.({ error: 'game_started' });
+        }
+
+        let t = targetTeamId
+          ? s.teams.find(x => x.id === targetTeamId)
+          : s.teams.find(x => x.captainId) || s.teams[0];
+
         if (!t) return cb?.({ error: 'no_teams' });
+
+        // Уже есть в этой команде под этим ником? Просто обновим socketId
+        if (!t.players) t.players = [];
+        const existing = t.players.find(
+          p => p.nickname.trim().toLowerCase() === nickname.trim().toLowerCase()
+        );
+        if (existing) {
+          existing.socketId = socket.id;
+        } else {
+          // Убираем из других команд (переключение)
+          for (const other of s.teams) {
+            if (other.id !== t.id && other.players) {
+              other.players = other.players.filter(
+                p =>
+                  p.nickname.trim().toLowerCase() !==
+                  nickname.trim().toLowerCase()
+              );
+            }
+          }
+          t.players.push({
+            socketId: socket.id,
+            nickname: nickname.trim(),
+            joinedAt: Date.now()
+          });
+        }
+
         teamId = t.id;
+        isCaptain = false;
       }
 
       socket.data = { code, teamId, isCaptain, nickname };
@@ -202,6 +258,12 @@ export function attachSocket(io: Server) {
       sessions.set(code, ns);
       stopClueTimer(code);
       if (ns.phase === 'discussion') startClueTimer(io, code);
+      if (ns.phase === 'voting') {
+        const start = (socket as any).__startVotingTimer as
+          | ((c: string) => void)
+          | undefined;
+        start?.(code);
+      }
 
       const dbS = await prisma.gameSession.findUnique({ where: { code } });
       if (dbS) {
@@ -337,6 +399,105 @@ export function attachSocket(io: Server) {
       cb?.({ ok: true });
     });
 
+        socket.on(
+      'team:set-captain',
+      async (
+        { code, newCaptainSocketId }: { code: string; newCaptainSocketId: string },
+        cb?: any
+      ) => {
+        const s = sessions.get(code);
+        if (!s) return cb?.({ error: 'not_found' });
+        if (s.phase !== 'lobby') return cb?.({ error: 'game_started' });
+
+        const { teamId, isCaptain, nickname } = (socket.data as any) || {};
+        if (!isCaptain) return cb?.({ error: 'not_captain' });
+
+        const team = s.teams.find(t => t.id === teamId);
+        if (!team) return cb?.({ error: 'no_team' });
+        if (!team.players) team.players = [];
+
+        const target = team.players.find(p => p.socketId === newCaptainSocketId);
+        if (!target) return cb?.({ error: 'player_not_found' });
+
+        // Обновляем капитана команды
+        team.captainId = target.socketId;
+        team.captainName = target.nickname;
+
+        // Обновляем socket.data для всех сокетов команды
+        const ioAny = io as any;
+        const socketsInRoom = await io.in(`play:${code}`).fetchSockets();
+        for (const sock of socketsInRoom) {
+          const d = sock.data as any;
+          if (d?.teamId === team.id) {
+            d.isCaptain = sock.id === team.captainId;
+          }
+        }
+
+        const dbS = await prisma.gameSession.findUnique({ where: { code } });
+        if (dbS) {
+          await log({
+            sessionId: dbS.id,
+            code,
+            event: 'team:set-captain',
+            actor: nickname ?? teamId,
+            payload: {
+              teamId,
+              teamName: team.name,
+              previousCaptain: nickname,
+              newCaptain: target.nickname,
+              newCaptainSocketId: target.socketId
+            }
+          });
+        }
+
+        await persistState(code, s);
+        broadcastState(io, code, s);
+        cb?.({ ok: true, teamId: team.id, captainId: team.captainId });
+      }
+    );
+
+        socket.on('team:leave', async ({ code }: { code: string }, cb?: any) => {
+      const s = sessions.get(code);
+      if (!s) return cb?.({ error: 'not_found' });
+      if (s.phase !== 'lobby') return cb?.({ error: 'game_started' });
+
+      const { teamId, nickname } = (socket.data as any) || {};
+      const team = s.teams.find(t => t.id === teamId);
+      if (!team) return cb?.({ error: 'no_team' });
+
+      // Капитан не может выйти — сначала передать капитанство
+      if (team.captainId === socket.id) {
+        const others = (team.players || []).filter(p => p.socketId !== socket.id);
+        if (others.length === 0) {
+          // Последний в команде — удаляем стол целиком
+          s.teams = s.teams.filter(t => t.id !== team.id);
+        } else {
+          return cb?.({ error: 'captain_must_transfer' });
+        }
+      } else {
+        if (team.players) {
+          team.players = team.players.filter(p => p.socketId !== socket.id);
+        }
+      }
+
+      socket.data = { ...(socket.data as any), teamId: undefined, isCaptain: false };
+
+      const dbS = await prisma.gameSession.findUnique({ where: { code } });
+      if (dbS) {
+        await log({
+          sessionId: dbS.id,
+          code,
+          event: 'team:leave',
+          actor: nickname ?? socket.id,
+          payload: { teamId, teamName: team.name, phase: s.phase }
+        });
+      }
+
+      await persistState(code, s);
+      broadcastState(io, code, s);
+      cb?.({ ok: true });
+    });
+
     socket.on('client:trace', async (payload: { code: string; event: string; data?: any }) => {
       const { code, event, data } = payload;
       const dbS = await prisma.gameSession.findUnique({ where: { code } });
@@ -375,11 +536,81 @@ export function attachSocket(io: Server) {
       io.in(`play:${code}`).disconnectSockets(true);
       cb?.({ ok: true });
     });
+    // ============================================================
+    // AUTO-ADVANCE: voting 60s
+    // ============================================================
+    const votingTimers = new Map<string, NodeJS.Timeout>();
+
+    function startVotingTimer(code: string) {
+      const existing = votingTimers.get(code);
+      if (existing) clearTimeout(existing);
+      const t = setTimeout(async () => {
+        const s = sessions.get(code);
+        if (!s || s.phase !== 'voting') return;
+        const ns = E.nextPhase(s);
+        sessions.set(code, ns);
+        const dbS = await prisma.gameSession.findUnique({ where: { code } });
+        if (dbS) {
+          await log({
+            sessionId: dbS.id,
+            code,
+            event: 'voting:auto-advance',
+            actor: 'timer',
+            payload: { round: s.round, teamsVoted: s.teams.filter(t => t.vote).length }
+          });
+        }
+        await persistState(code, ns);
+        broadcastState(io, code, ns);
+      }, 60_000);
+      votingTimers.set(code, t);
+    }
+
+    // Хук на смену phase → запускать/останавливать таймер
+    // Запускается из host:advance / host:prev / auto-advance
+    // Реализация: переопределяем broadcastState? Нет — проще: в host:advance после broadcast
+    //   вызывать startVotingTimer если ns.phase === 'voting'.
+    (socket as any).__votingTimers = votingTimers;
+    (socket as any).__startVotingTimer = startVotingTimer;
 
     socket.on('disconnect', () => {
       console.log('[socket] disconnected', socket.id);
+      const { code } = (socket.data as any) || {};
+      if (!code) return;
+      const s = sessions.get(code);
+      if (!s) return;
+      let changed = false;
+      for (const t of s.teams) {
+        if (!t.players) continue;
+        const before = t.players.length;
+        // не удаляем при переподключении — просто оставляем, клиент пересоздаст сокет и пришлёт join заново
+        // но при явном disconnect — оставляем запись, чтобы participant мог вернуться по nickname
+        // (см. player:join — он перезапишет socketId)
+        if (before !== t.players.length) changed = true;
+      }
+      // Не broadcast'им — чтобы не дёргать остальных каждые 5 сек
     });
   });
+}
+// ============================================================
+// HELPERS (batches B/C)
+// ============================================================
+
+type AnySocketData = {
+  code?: string;
+  teamId?: string;
+  isCaptain?: boolean;
+  nickname?: string;
+};
+
+function findTeamOfPlayer(s: E.GameState, socketId: string) {
+  return s.teams.find(t => t.players?.some(p => p.socketId === socketId));
+}
+
+function removePlayerFromAll(s: E.GameState, socketId: string) {
+  for (const t of s.teams) {
+    if (!t.players) t.players = [];
+    t.players = t.players.filter(p => p.socketId !== socketId);
+  }
 }
 
 export function getSession(code: string) {

@@ -178,7 +178,7 @@ export default function Play() {
   const { code } = useParams();
   const [state, setState] = useState<any>(null);
   const [nickname, setNickname] = useState('');
-  const [wantCaptain, setWantCaptain] = useState(false);
+  const [wantCaptain, setWantCaptain] = useState(true);
   const [joined, setJoined] = useState(false);
   const [isCaptain, setIsCaptain] = useState(false);
   const [teamId, setTeamId] = useState<string | null>(null);
@@ -188,6 +188,8 @@ export default function Play() {
   const didReconnect = useRef(false);
   const lastStateRef = useRef<any>(null);
   const joinedRef = useRef(false);
+  const [showTeamPicker, setShowTeamPicker] = useState(false);
+  const [teamList, setTeamList] = useState<any[]>([]);
 
   const trace = (event: string, data?: any) => {
     if (!code) return;
@@ -276,6 +278,40 @@ export default function Play() {
       setErr('Имя должно содержать минимум 2 символа');
       return;
     }
+
+    // Участник — если ещё не выбрал стол, открываем picker
+    if (!wantCaptain && !state) {
+      // эмитим player:join с wantCaptain:false и targetTeamId:undefined — сервер вернёт state с teams
+      sock.current.emit(
+        'player:join',
+        { code, nickname: v, wantCaptain: false, reconnectTeamId: localStorage.getItem(`team_${code}`) || undefined },
+        (res: any) => {
+          if (res?.error) {
+            setErr(
+              res.error === 'no_teams'
+                ? 'Пока нет столов — создайте стол капитаном'
+                : res.error === 'duplicate_name'
+                ? 'Стол с таким названием уже существует'
+                : res.error
+            );
+            return;
+          }
+          if (res?.teamId) {
+            // попали в первую команду — не то, что хотим; предложим выбор
+            setTeamList(res.state?.teams || []);
+            setShowTeamPicker(true);
+            setState(res.state);
+            return;
+          }
+          setJoined(true);
+          setTeamId(res.teamId);
+          setIsCaptain(res.isCaptain);
+          setState(res.state);
+        }
+      );
+      return;
+    }
+
     if (joinedRef.current) return;
     joinedRef.current = true;
 
@@ -291,7 +327,13 @@ export default function Play() {
       (res: any) => {
         joinedRef.current = false;
         if (res?.error) {
-          setErr(res.error === 'no_teams' ? 'Сначала создайте стол капитаном' : res.error);
+          const msg =
+            res.error === 'no_teams'
+              ? 'Сначала создайте стол капитаном'
+              : res.error === 'duplicate_name'
+              ? 'Стол с таким названием уже существует — выберите другое имя'
+              : res.error;
+          setErr(msg);
           trace('join_failed', { error: res.error });
           return;
         }
@@ -315,6 +357,41 @@ export default function Play() {
         trace('vote_success', { suspectId });
       }
     });
+  }
+
+    if (showTeamPicker) {
+    const pick = (targetTeamId: string) => {
+      const v = nickname.trim();
+      sock.current.emit(
+        'player:join',
+        { code, nickname: v, wantCaptain: false, targetTeamId },
+        (res: any) => {
+          if (res?.error) {
+            setErr(res.error === 'game_started' ? 'Игра уже началась' : res.error);
+            return;
+          }
+          setJoined(true);
+          setIsCaptain(res.isCaptain);
+          setTeamId(res.teamId);
+          setState(res.state);
+          if (res.teamId) localStorage.setItem(`team_${code}`, res.teamId);
+          setShowTeamPicker(false);
+        }
+      );
+    };
+    return (
+      <TeamPickerScreen
+        code={code}
+        teams={state?.teams || teamList}
+        nickname={nickname}
+        onPick={pick}
+        onBack={() => {
+          setShowTeamPicker(false);
+          setState(null);
+        }}
+        err={err}
+      />
+    );
   }
 
   if (!joined) {
@@ -360,7 +437,15 @@ export default function Play() {
   );
 
   if (phase === 'lobby') {
-    return <LobbyScreen scenario={scenario} round={round} isCaptain={isCaptain} />;
+    return (
+      <LobbyScreen
+        scenario={scenario}
+        round={round}
+        isCaptain={isCaptain}
+        code={code}
+        myTeam={myTeam}
+      />
+    );
   }
   if (phase === 'intro') {
     return <IntroScreen scenario={scenario} isCaptain={isCaptain} />;
@@ -388,6 +473,8 @@ export default function Play() {
         myTeam={myTeam}
         teams={teams}
         onVote={vote}
+        votingStartedAt={state.votingStartedAt}
+        votingDurationSec={state.votingDurationSec || 60}
       />
     );
   }
@@ -396,7 +483,15 @@ export default function Play() {
   }
   if (phase === 'end' || phase === 'results-final') {
     if (code) localStorage.removeItem(`team_${code}`);
-    return <EndScreen scenario={scenario} />;
+    return (
+      <EndScreen
+        scenario={scenario}
+        myTeam={myTeam}
+        teams={teams}
+        isCaptain={isCaptain}
+        roundScores={myTeam?.roundScores || [0, 0, 0, 0]}
+      />
+    );
   }
 
   return null;
@@ -531,23 +626,52 @@ function JoinScreen({
 
           {err && <div className="text-[12px] text-[#c96a52] mb-3">{err}</div>}
 
-          <label className="flex gap-3 items-start cursor-pointer mb-6 select-none">
-            <input
-              type="checkbox"
-              checked={wantCaptain}
-              onChange={e => setWantCaptain(e.target.checked)}
-              className="hidden peer"
-            />
-            <span className="flex-none w-[22px] h-[22px] border border-[#3d342f] rounded-md grid place-items-center bg-black/30 mt-0.5 peer-checked:bg-[#9b3f2c] peer-checked:border-[#9b3f2c] transition">
-              <i className="fa-solid fa-check text-[11px] text-white scale-0 peer-checked:scale-100 transition" />
-            </span>
-            <p className="text-[14px] leading-snug text-[#b8aea5]">
-              Я капитан команды
-              <em className="block not-italic text-[12px] text-[#8d837b]">
-                Будет создан новый стол
-              </em>
-            </p>
-          </label>
+          <div className="grid grid-cols-2 gap-2.5 mb-6">
+            <button
+              type="button"
+              onClick={() => setWantCaptain(true)}
+              className={
+                'text-left p-3.5 rounded-[10px] border transition ' +
+                (wantCaptain
+                  ? 'border-[#9b3f2c] bg-[#9b3f2c14]'
+                  : 'border-[#2a2421] bg-black/20 hover:border-[#4a3e38]')
+              }
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <i
+                  className={`fa-solid fa-user-tie text-[13px] ${
+                    wantCaptain ? 'text-[#d0664d]' : 'text-[#8d837b]'
+                  }`}
+                />
+                <b className="text-[14px] text-[#e9e2da]">Я капитан</b>
+              </div>
+              <div className="text-[11.5px] text-[#8d837b] leading-snug">
+                Создам новый стол
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setWantCaptain(false)}
+              className={
+                'text-left p-3.5 rounded-[10px] border transition ' +
+                (!wantCaptain
+                  ? 'border-[#9b3f2c] bg-[#9b3f2c14]'
+                  : 'border-[#2a2421] bg-black/20 hover:border-[#4a3e38]')
+              }
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <i
+                  className={`fa-solid fa-user-secret text-[13px] ${
+                    !wantCaptain ? 'text-[#d0664d]' : 'text-[#8d837b]'
+                  }`}
+                />
+                <b className="text-[14px] text-[#e9e2da]">Я участник</b>
+              </div>
+              <div className="text-[11.5px] text-[#8d837b] leading-snug">
+                Выберу стол
+              </div>
+            </button>
+          </div>
 
           <button
             type="submit"
@@ -579,6 +703,23 @@ function JoinScreen({
 // ============================================================
 
 function LobbyScreen({ scenario, round, isCaptain }: any) {
+    const sock = getSocket();
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [pickId, setPickId] = useState<string | null>(null);
+  const myTeam = (window as any).__myTeam as any;
+
+  function transfer() {
+    if (!pickId) return;
+    const code = (window as any).__code;
+    sock.emit('team:set-captain', { code, newCaptainSocketId: pickId }, (res: any) => {
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
+      setShowTransfer(false);
+      setPickId(null);
+    });
+  }
   return (
     <div className="relative min-h-screen flex justify-center bg-[#100e0c] text-[#d8d2c8] overflow-hidden">
       <svg
@@ -721,6 +862,15 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
               ? 'Вы капитан команды. Дождитесь начала.'
               : 'Вы присоединились как зритель. Решение принимает капитан.'}
           </p>
+                    {isCaptain && myTeam && (
+            <button
+              onClick={() => setShowTransfer(true)}
+              className="mt-4 px-4 py-2 rounded-lg border border-[#3a342a] text-[12px] text-[#a79d8b] hover:text-[#e9e2da] hover:border-[#4a3e38] transition"
+            >
+              <i className="fa-solid fa-user-tie mr-1.5" />
+              Передать капитанство
+            </button>
+          )}
           <div className="mt-5 pt-4 border-t border-white/[.06] flex justify-center items-center gap-2.5 text-[13px] text-[#8d857a]">
             <i className="fa-solid fa-user-tie text-[#c8964a]" />
             Игроки собираются
@@ -732,6 +882,73 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
           </div>
         </div>
       </main>
+
+      {showTransfer && myTeam && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowTransfer(false);
+              setPickId(null);
+            }
+          }}
+        >
+          <div className="bg-[#1a110d] border border-[#3a342a] rounded-2xl p-6 max-w-md w-full">
+            <h3 className="font-['Cormorant_Garamond'] text-[24px] text-[#f1e9df] mb-1.5">
+              Передать капитанство
+            </h3>
+            <p className="text-[13px] text-[#8d837b] mb-5">
+              Выберите, кто будет голосовать за вашу команду.
+            </p>
+            <div className="space-y-2 mb-5 max-h-[300px] overflow-y-auto">
+              {(myTeam.players || [])
+                .filter((p: any) => p.socketId !== myTeam.captainId)
+                .map((p: any) => (
+                  <button
+                    key={p.socketId}
+                    onClick={() => setPickId(p.socketId)}
+                    className={
+                      'w-full text-left p-3 rounded-lg border transition flex items-center gap-3 ' +
+                      (pickId === p.socketId
+                        ? 'border-[#b5553f] bg-[#b5553f14]'
+                        : 'border-[#2c2821] hover:border-[#4a3e38]')
+                    }
+                  >
+                    <span className="w-8 h-8 rounded-full border border-[#3a342a] bg-[#0f0e0c] grid place-items-center text-[#d0664d] text-xs">
+                      {p.nickname[0]}
+                    </span>
+                    <span className="text-[14px] text-[#f1e9df]">{p.nickname}</span>
+                  </button>
+                ))}
+              {(myTeam.players || []).filter(
+                (p: any) => p.socketId !== myTeam.captainId
+              ).length === 0 && (
+                <div className="text-[13px] text-[#8d837b] py-4 text-center">
+                  В команде больше никого нет
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowTransfer(false);
+                  setPickId(null);
+                }}
+                className="px-4 py-2 rounded-lg border border-[#3a342a] text-[#a79d8b] text-[13px]"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={transfer}
+                disabled={!pickId}
+                className="px-4 py-2 rounded-lg bg-[#9b3f2c] text-white text-[13px] font-semibold disabled:opacity-40"
+              >
+                Передать
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -901,7 +1118,9 @@ function VotingScreen({
   isCaptain,
   myTeam,
   teams,
-  onVote
+  onVote,
+  votingStartedAt,
+  votingDurationSec
 }: any) {
   const [selected, setSelected] = useState<number | null>(null);
   const voted = !!myTeam?.vote;
@@ -1078,12 +1297,7 @@ function VotingScreen({
         <div className="max-w-[440px] mx-auto">
           <div className="font-['IBM_Plex_Mono'] text-[11px] tracking-[.08em] text-center text-[#6f675a] mb-2.5 min-h-[17px] flex items-center justify-center gap-3">
             <span>{hint}</span>
-            {!voted && (
-              <span className="text-[#b3261e]">
-                <i className="fa-regular fa-clock mr-1" />
-                <VotingCountdown />
-              </span>
-            )}
+          {!voted && <VotingCountdown votingStartedAt={votingStartedAt} />}
           </div>
           <button
             onClick={submit}
@@ -1251,7 +1465,15 @@ function ResultsScreen({ scenario, round }: any) {
 // ЭКРАН 9: END
 // ============================================================
 
-function EndScreen({ scenario }: any) {
+function EndScreen({ scenario, myTeam, teams, isCaptain, roundScores }: any) {
+  const safeTeams = teams || [];
+  const myId = myTeam?.id;
+  const sorted = [...safeTeams].sort((a: any, b: any) => (b.score || 0) - (a.score || 0));
+  const myPlace = myId ? sorted.findIndex((t: any) => t.id === myId) + 1 : 0;
+  const totalTeams = sorted.length;
+  const rs = Array.isArray(roundScores) && roundScores.length ? roundScores : [0, 0, 0, 0];
+  const fmtScore = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+
   return (
     <div className="relative min-h-screen flex justify-center bg-[#0e0d0c] text-[#e8e2d6] overflow-hidden">
       <div
@@ -1272,8 +1494,8 @@ function EndScreen({ scenario }: any) {
           <div className="font-bold text-[#e8e2d6]">Финал</div>
         </header>
 
-        <main className="flex-1 flex flex-col items-center justify-center text-center px-7 py-10">
-          <div className="relative w-[92px] h-[92px] rounded-full border border-[#b5553f73] grid place-items-center mb-9">
+        <main className="flex-1 flex flex-col items-center text-center px-7 py-10">
+          <div className="relative w-[92px] h-[92px] rounded-full border border-[#b5553f73] grid place-items-center mb-7 mt-4">
             <div
               className="absolute inset-2 rounded-full border border-dashed border-[#b5553f4d] animate-spin"
               style={{ animationDuration: '24s' }}
@@ -1283,31 +1505,205 @@ function EndScreen({ scenario }: any) {
           <div className="text-[11px] tracking-[.32em] uppercase text-[#7d766b] mb-3.5">
             Дело закрыто
           </div>
-          <h1 className="font-['Cormorant_Garamond'] font-medium text-[44px] leading-[1.05] text-[#f1ebdf] mb-6">
+          <h1 className="font-['Cormorant_Garamond'] font-medium text-[40px] leading-[1.05] text-[#f1ebdf] mb-5">
             Вы были сегодня
             <br />
             <em className="text-[#c7654d] italic">великолепны</em>
           </h1>
           <div className="w-12 h-px bg-[#b5553f] mb-6" />
-          <p className="font-['Cormorant_Garamond'] italic text-[19px] text-[#a79f93] leading-snug max-w-[340px]">
+          <p className="font-['Cormorant_Garamond'] italic text-[18px] text-[#a79f93] leading-snug max-w-[340px] mb-8">
             «Каждая история заканчивается. Но у хорошего детектива всегда есть следующее
             дело.»
           </p>
+
+          {/* ===== Блок «Ваша команда» ===== */}
+          {myTeam ? (
+            <div className="w-full max-w-[380px] rounded-2xl border border-[#b5553f55] bg-[#16140f] p-6 text-left">
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-[10.5px] tracking-[.2em] uppercase text-[#b5553f] font-bold">
+                  Ваша команда
+                </div>
+                {isCaptain && (
+                  <span className="text-[10px] tracking-wider uppercase text-[#a79d8b] border border-[#3a342a] rounded px-1.5 py-0.5">
+                    капитан
+                  </span>
+                )}
+              </div>
+
+              <div className="font-['Cormorant_Garamond'] text-[28px] leading-tight text-[#f1ebdf] mb-1">
+                {myTeam.name}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-5">
+                <div className="rounded-lg border border-[#2c2821] bg-[#0f0e0c] p-3">
+                  <div className="text-[10px] tracking-[.16em] uppercase text-[#6f675a] mb-1">
+                    Место
+                  </div>
+                  <div className="font-['Cormorant_Garamond'] text-[28px] leading-none text-[#ece4d4]">
+                    {myPlace > 0 ? `${myPlace}` : '—'}
+                    <span className="text-[14px] text-[#6f675a] ml-1">/ {totalTeams}</span>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-[#2c2821] bg-[#0f0e0c] p-3">
+                  <div className="text-[10px] tracking-[.16em] uppercase text-[#6f675a] mb-1">
+                    Очки
+                  </div>
+                  <div
+                    className={
+                      'font-[\'Cormorant_Garamond\'] text-[28px] leading-none ' +
+                      ((myTeam.score || 0) > 0 ? 'text-green-400' : 'text-[#ece4d4]')
+                    }
+                  >
+                    {myTeam.score || 0}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="text-[10px] tracking-[.16em] uppercase text-[#6f675a] mb-2">
+                  По раундам
+                </div>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {rs.map((val: number, i: number) => (
+                    <div
+                      key={i}
+                      className="rounded-md border border-[#2c2821] bg-[#0f0e0c] py-2 text-center"
+                    >
+                      <div className="text-[9px] tracking-[.14em] uppercase text-[#6f675a] mb-0.5">
+                        Р{i + 1}
+                      </div>
+                      <div
+                        className={
+                          'font-[\'IBM_Plex_Mono\'] text-[13px] tabular-nums ' +
+                          (val < 0
+                            ? 'text-[#c96a52]'
+                            : val > 0
+                            ? 'text-green-400'
+                            : 'text-[#6f675a]')
+                        }
+                      >
+                        {val === 0 ? '—' : fmtScore(val)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="w-full max-w-[380px] rounded-2xl border border-[#2c2821] bg-[#16140f] p-5 text-[13px] text-[#a79d8b]">
+              Вы были зрителем и не входили ни в одну команду.
+            </div>
+          )}
         </main>
       </div>
     </div>
   );
 }
 
-function VotingCountdown() {
-  const [left, setLeft] = useState(30);
+function VotingCountdown({
+  votingStartedAt
+}: {
+  votingStartedAt?: number | null;
+}) {
+  const DURATION = 60;
+  const [left, setLeft] = useState(() => {
+    if (!votingStartedAt) return DURATION;
+    return Math.max(
+      0,
+      DURATION - Math.floor((Date.now() - votingStartedAt) / 1000)
+    );
+  });
+
   useEffect(() => {
-    const t = setInterval(() => setLeft(l => Math.max(0, l - 1)), 1000);
+    if (!votingStartedAt) {
+      setLeft(DURATION);
+      return;
+    }
+    const tick = () => {
+      const l = Math.max(
+        0,
+        DURATION - Math.floor((Date.now() - votingStartedAt) / 1000)
+      );
+      setLeft(l);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [votingStartedAt]);
+
   return (
     <span className="font-['IBM_Plex_Mono'] tabular-nums">
-      0:{String(left).padStart(2, '0')}
+      {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}
     </span>
+  );
+}
+
+// ============================================================
+// TEAM PICKER (участник выбирает стол)
+// ============================================================
+
+function TeamPickerScreen({
+  code,
+  teams,
+  nickname,
+  onPick,
+  onBack,
+  err
+}: any) {
+  return (
+    <div className="relative min-h-screen flex justify-center bg-[#100e0c] text-[#d8d2c8] overflow-hidden">
+      <RainCanvas opacity={0.4} lightning />
+      <main className="relative z-[2] w-full max-w-[480px] px-5 py-8 flex flex-col">
+        <button
+          onClick={onBack}
+          className="self-start mb-6 text-[13px] text-[#8d837b] hover:text-[#e9e2da] transition flex items-center gap-1.5"
+        >
+          <i className="fa-solid fa-arrow-left text-xs" />
+          Назад
+        </button>
+        <div className="text-[11px] tracking-[.32em] uppercase text-[#8d837b] mb-3">
+          Подключение
+        </div>
+        <h1 className="font-['Cormorant_Garamond'] font-semibold text-[36px] leading-tight text-[#f1e9df] mb-2">
+          Выберите стол
+        </h1>
+        <p className="text-[13.5px] text-[#a9a195] mb-6">
+          Присоединяйтесь к капитану. Голосует только капитан, вы наблюдаете.
+        </p>
+
+        {err && <div className="text-[12px] text-[#c96a52] mb-3">{err}</div>}
+
+        {teams.length === 0 && (
+          <div className="text-center py-12 border border-dashed border-[#3a342a] rounded-xl text-[13px] text-[#8d837b]">
+            Пока нет ни одного стола. Попросите капитана создать его.
+          </div>
+        )}
+
+        <div className="space-y-2.5">
+          {teams.map((t: any) => (
+            <button
+              key={t.id}
+              onClick={() => onPick(t.id)}
+              className="w-full text-left p-4 rounded-xl border border-[#2c2821] bg-[#16140f] hover:border-[#b5553f] transition flex items-center justify-between gap-3"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="w-10 h-10 rounded-full border border-[#3a342a] bg-[#0f0e0c] grid place-items-center text-[#d0664d] font-serif text-sm flex-none">
+                  {(t.captainName || t.name)[0]}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[15px] font-bold text-[#f1e9df] truncate">
+                    {t.name}
+                  </div>
+                  <div className="text-[12px] text-[#8d837b] truncate">
+                    Капитан: {t.captainName || '—'} · {(t.players || []).length} в команде
+                  </div>
+                </div>
+              </div>
+              <i className="fa-solid fa-arrow-right text-[#8d837b] flex-none" />
+            </button>
+          ))}
+        </div>
+      </main>
+    </div>
   );
 }
