@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ThreeScene from './ThreeScene';
-import LoginModal from './LoginModal';
+import AuthModal, { type AuthMode } from './AuthModal';
+import ProfileMenu from './ProfileMenu';
+import { useAccount, type Me } from '../account';
 
 type ScenarioCard = {
   id: string;
@@ -28,7 +31,13 @@ const RANDOM_META = {
 export default function Landing() {
   const [cards, setCards] = useState<ScenarioCard[]>([]);
   const [selected, setSelected] = useState<string>('random');
-  const [loginOpen, setLoginOpen] = useState(false);
+  const [auth, setAuth] = useState<{ open: boolean; mode: AuthMode; fromCase: boolean }>({
+    open: false,
+    mode: 'login',
+    fromCase: false
+  });
+  const { me } = useAccount();
+  const nav = useNavigate();
 
   useEffect(() => {
     fetch('/api/scenarios')
@@ -69,11 +78,26 @@ export default function Landing() {
     ...cards
   ];
 
-  const openCase = () => setLoginOpen(true);
+  const goToGame = (user: Me) => {
+    if (user.role === 'ADMIN') return nav('/admin');
+    if (selected !== 'random') sessionStorage.setItem('preferred_case', selected);
+    nav('/host');
+  };
+
+  const openCase = () => {
+    if (me) goToGame(me);
+    else setAuth({ open: true, mode: 'register', fromCase: true });
+  };
+
+  const onAuthSuccess = (user: Me) => {
+    if (auth.fromCase || user.role !== 'PLAYER') goToGame(user);
+  };
 
   return (
     <div className="relative bg-lnd-ink text-lnd-text font-sans min-h-screen">
       <ThreeScene />
+
+      <ProfileMenu onLogin={() => setAuth({ open: true, mode: 'login', fromCase: false })} />
 
       <div className="fixed inset-0 pointer-events-none z-[1] bg-[radial-gradient(ellipse_at_70%_35%,transparent_0%,rgba(8,4,3,.2)_50%,rgba(8,4,3,.75)_100%)]" />
 
@@ -210,10 +234,11 @@ export default function Landing() {
         </div>
       </div>
 
-      <LoginModal
-        open={loginOpen}
-        onClose={() => setLoginOpen(false)}
-        preferredCase={selected !== 'random' ? selected : undefined}
+      <AuthModal
+        open={auth.open}
+        initialMode={auth.mode}
+        onClose={() => setAuth(a => ({ ...a, open: false }))}
+        onSuccess={onAuthSuccess}
       />
     </div>
   );

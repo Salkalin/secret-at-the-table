@@ -10,16 +10,78 @@ datasource db {
 enum Role {
   ADMIN
   HOST
+  PLAYER
+}
+
+enum PaymentStatus {
+  PENDING
+  WAITING_FOR_CAPTURE
+  SUCCEEDED
+  CANCELED
+  REFUNDED
+}
+
+enum PaymentPurpose {
+  TOPUP
+  SCENARIO
 }
 
 model User {
-  id        String        @id @default(cuid())
-  email     String        @unique
-  password  String
-  role      Role
-  active    Boolean       @default(true)
-  createdAt DateTime      @default(now())
-  sessions  GameSession[]
+  id           String        @id @default(cuid())
+  email        String        @unique
+  password     String
+  role         Role
+  firstName    String?
+  lastName     String?
+  balance      Int           @default(0)
+  consentAt    DateTime?
+  consentIp    String?
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  sessions     GameSession[]
+  payments     Payment[]
+  purchases    Purchase[]
+}
+
+model Payment {
+  id                String         @id @default(cuid())
+  userId            String
+  purpose           PaymentPurpose
+  scenarioId        String?
+  amount            Int
+  currency          String         @default("RUB")
+  status            PaymentStatus  @default(PENDING)
+  provider          String
+  providerPaymentId String?
+  confirmationUrl   String?
+  description       String?
+  idempotencyKey    String         @unique
+  metadata          Json?
+  paidAt            DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  purchase Purchase?
+
+  @@unique([provider, providerPaymentId])
+  @@index([userId])
+  @@index([status])
+}
+
+model Purchase {
+  id         String   @id @default(cuid())
+  userId     String
+  scenarioId String
+  paymentId  String?  @unique
+  price      Int
+  createdAt  DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([userId, scenarioId])
+  @@index([userId])
 }
 
 model GameSession {
