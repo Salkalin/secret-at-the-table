@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 const SECRET = process.env.JWT_SECRET || 'dev-secret';
 const COOKIE = 'mt_token';
 
-export type JwtPayload = { uid: string; role: 'ADMIN' | 'HOST' };
+export type JwtPayload = { uid: string; role: 'ADMIN' | 'HOST' | 'PLAYER' };
 
 export const hashPassword = (pw: string) => argon2.hash(pw);
 export const verifyPassword = (hash: string, pw: string) => argon2.verify(hash, pw);

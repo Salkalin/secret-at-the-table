@@ -4,6 +4,8 @@ import * as A from './auth.js';
 import * as E from './engine.js';
 import { setSession, getSession } from './socket.js';
 import { SCENARIOS } from './scenarios.js';
+import { accountRoutes } from './account.js';
+import { paymentRoutes } from './payments/routes.js';
 import { getAllScenariosMerged, getScenarioMerged } from './scenarios-merge.js';
 
 type Level = 'info' | 'warn' | 'error';
@@ -34,30 +36,14 @@ export async function log(args: LogArgs) {
 }
 
 export async function routes(app: FastifyInstance) {
-  app.post('/api/login', async (req, reply) => {
-    const { email, password } = (req.body as any) || {};
-    if (!email || !password) return reply.code(400).send({ error: 'missing' });
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !user.active) return reply.code(401).send({ error: 'invalid' });
-    const ok = await A.verifyPassword(user.password, password);
-    if (!ok) return reply.code(401).send({ error: 'invalid' });
-    const token = A.signToken({ uid: user.id, role: user.role as any });
-    A.setAuthCookie(reply, token);
-    return { role: user.role };
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    (req as any).rawBody = body;
+    if (!body) return done(null, {});
+    try { done(null, JSON.parse(body as string)); } catch (e: any) { e.statusCode = 400; done(e, undefined); }
   });
 
-  app.post('/api/logout', async (_req, reply) => {
-    A.clearAuthCookie(reply);
-    return { ok: true };
-  });
-
-  app.get('/api/me', async (req, reply) => {
-    const auth = A.getAuthFromCookie(req);
-    if (!auth) return reply.code(401).send({ error: 'unauthorized' });
-    const u = await prisma.user.findUnique({ where: { id: auth.uid } });
-    if (!u) return reply.code(401).send({ error: 'unauthorized' });
-    return { id: u.id, email: u.email, role: u.role };
-  });
+  await app.register(accountRoutes);
+  await app.register(paymentRoutes);
 
   app.get('/api/admin/hosts', async (req, reply) => {
     if (!A.requireRole(req, reply, 'ADMIN')) return;
