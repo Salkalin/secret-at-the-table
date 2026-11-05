@@ -18,15 +18,11 @@ import {
   ElenaScene
 } from '../screens';
 
-import {
-  ManorIntroScene,
-  ManorChapter1Scene,
-  ManorChapter2Scene,
-  ManorChapter3Scene
-} from '../screens/manor';
-
-import { ManorHtmlScene } from '../screens/manor/ManorHtmlScene';
+import { HtmlScene } from '../screens/HtmlScene';
 import { MANOR_INTRO_HTML, MANOR_CH1_HTML, MANOR_CH2_HTML, MANOR_CH3_HTML } from '../screens/manor/html-sources';
+import { manorIntroFx, manorCh1Fx, manorCh2Fx } from '../screens/manor/effects';
+import { THEATRE_INTRO_HTML, THEATRE_CH1_HTML, THEATRE_CH2_HTML, THEATRE_CH3_HTML } from '../screens/theatre/html-sources';
+import { theatreIntroFx, theatreCh1Fx, theatreCh2Fx, theatreCh3Fx } from '../screens/theatre/effects';
 
 const fmt = (s: number) => {
   s = Math.max(0, s);
@@ -67,6 +63,14 @@ export default function Screen() {
     const isManor = sc?.id === 'manor';
     // Для manor используем SVG-сцены — bgUrl не нужен
     if (isManor) {
+      setBgUrl('');
+      return;
+    }
+    // Для theatre свои сцены на интро и главах 1–3; на остальных экранах — прежнее фото
+    const theatreHasScene =
+      sc?.id === 'theatre' &&
+      (state.phase === 'intro' || (state.phase === 'story' && state.round >= 1 && state.round <= 3));
+    if (theatreHasScene) {
       setBgUrl('');
       return;
     }
@@ -198,11 +202,15 @@ return (
           {phase === 'end' && <ElenaScene />}
         </>
       )}
-      {scenario.id === 'manor' && phase === 'intro' && <ManorHtmlScene html={MANOR_INTRO_HTML} />}
-      {scenario.id === 'manor' && phase === 'story' && round === 1 && <ManorHtmlScene html={MANOR_CH1_HTML} />}
-      {scenario.id === 'manor' && phase === 'story' && round === 2 && <ManorHtmlScene html={MANOR_CH2_HTML} />}
-      {scenario.id === 'manor' && phase === 'story' && round === 3 && <ManorHtmlScene html={MANOR_CH3_HTML} />}
-      {scenario.id === 'manor' && phase === 'story' && round >= 4 && <FinalScene />}
+      {scenario.id === 'manor' && phase === 'intro' && <HtmlScene html={MANOR_INTRO_HTML} effect={manorIntroFx} />}
+      {scenario.id === 'manor' && phase === 'story' && round === 1 && <HtmlScene html={MANOR_CH1_HTML} effect={manorCh1Fx} />}
+      {scenario.id === 'manor' && phase === 'story' && round === 2 && <HtmlScene html={MANOR_CH2_HTML} effect={manorCh2Fx} />}
+      {scenario.id === 'manor' && phase === 'story' && round === 3 && <HtmlScene html={MANOR_CH3_HTML} />}
+
+      {scenario.id === 'theatre' && phase === 'intro' && <HtmlScene html={THEATRE_INTRO_HTML} effect={theatreIntroFx} />}
+      {scenario.id === 'theatre' && phase === 'story' && round === 1 && <HtmlScene html={THEATRE_CH1_HTML} effect={theatreCh1Fx} />}
+      {scenario.id === 'theatre' && phase === 'story' && round === 2 && <HtmlScene html={THEATRE_CH2_HTML} effect={theatreCh2Fx} />}
+      {scenario.id === 'theatre' && phase === 'story' && round === 3 && <HtmlScene html={THEATRE_CH3_HTML} effect={theatreCh3Fx} />}
 
       <Header
         phase={phase}
