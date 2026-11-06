@@ -8,6 +8,7 @@ type Scen = {
   title: string;
   description: string;
   icon: string;
+  isLocked?: boolean;
 };
 
 type SessionRow = {
@@ -65,7 +66,7 @@ export default function Host() {
     try {
       let scenarioId = selected;
       if (scenarioId === 'random') {
-        const available = scens.filter(s => !SCENARIO_META[s.id]?.soon);
+        const available = scens.filter(s => !s.isLocked);
         const pick = available[Math.floor(Math.random() * available.length)];
         scenarioId = pick?.id || 'dinner';
       }
@@ -88,12 +89,14 @@ export default function Host() {
   }
 
   const allCards = [
-    { id: 'random', title: 'Случайное дело', description: 'Пусть решит жребий следствия. Вы узнаете дело, когда откроете папку.', ...RANDOM_META },
+    { id: 'random', title: 'Случайное дело', description: 'Пусть решит жребий следствия. Вы узнаете дело, когда откроете папку.', ...RANDOM_META, isLocked: false },
     ...scens.map(s => ({
       id: s.id,
       title: s.title,
       description: s.description,
-      ...(SCENARIO_META[s.id] || RANDOM_META)
+      ...(SCENARIO_META[s.id] || RANDOM_META),
+      // Приоритет: явный isLocked с бэкенда, иначе старый soon из мета
+      isLocked: s.isLocked || (SCENARIO_META[s.id] || RANDOM_META).soon === true
     }))
   ];
 
@@ -116,24 +119,24 @@ export default function Host() {
           const isSel = selected === card.id;
           return (
             <button
-              key={card.id}
-              disabled={card.soon}
-              onClick={() => !card.soon && setSelected(card.id)}
-              className={
-                'relative text-left rounded-[18px] p-6 min-h-[260px] flex flex-col transition overflow-hidden border ' +
-                (card.soon
-                  ? 'border-line opacity-50 cursor-not-allowed'
-                  : isSel
-                  ? 'border-transparent'
-                  : 'border-line hover:-translate-y-1')
-              }
-              style={{
-                background: isSel && !card.soon
-                  ? `linear-gradient(180deg, ${card.color}22, rgba(16,10,8,.94))`
-                  : 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))',
-                boxShadow: isSel && !card.soon ? `0 18px 50px -20px ${card.color}` : 'none'
-              }}
-            >
+  key={card.id}
+  disabled={card.isLocked}
+  onClick={() => !card.isLocked && setSelected(card.id)}
+  className={
+    'relative text-left rounded-[18px] p-6 min-h-[260px] flex flex-col transition overflow-hidden border ' +
+    (card.isLocked
+      ? 'border-line opacity-60 cursor-not-allowed'
+      : isSel
+      ? 'border-transparent'
+      : 'border-line hover:-translate-y-1')
+  }
+  style={{
+    background: isSel && !card.isLocked
+      ? `linear-gradient(180deg, ${card.color}22, rgba(16,10,8,.94))`
+      : 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))',
+    boxShadow: isSel && !card.isLocked ? `0 18px 50px -20px ${card.color}` : 'none'
+  }}
+>
               {isSel && (
                 <span
                   className="absolute left-0 right-0 top-0 h-[3px]"
@@ -179,6 +182,15 @@ export default function Host() {
                   <i className="fa-solid fa-check text-[#140c09] text-[11px]" />
                 </span>
               )}
+              {card.isLocked && (
+  <div className="absolute inset-0 bg-black/70 rounded-[18px] flex items-center justify-center z-10">
+    <div className="text-center px-4">
+      <i className="fa-solid fa-lock text-2xl text-accent mb-2" />
+      <div className="font-serif text-lg text-text">В разработке</div>
+      <div className="text-xs text-muted mt-1">Будет доступно позже</div>
+    </div>
+  </div>
+)}
             </button>
           );
         })}
