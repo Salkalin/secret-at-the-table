@@ -958,7 +958,7 @@ function Discussion({
           <i className="fa-solid fa-thumbtack text-accent text-base" />
           Доска улик
         </h3>
-        {roundClues.some(({ i }: any) => revealedClueIndices.includes(i)) && (
+        {roundClues.some(({ c, i }: any) => c.audioUrl && revealedClueIndices.includes(i)) && (
           <button
             onClick={playAll}
             className="px-4 py-2 rounded-lg border border-line bg-panel hover:bg-panel2 text-sm flex items-center gap-2"
