@@ -114,7 +114,7 @@ export function attachSocket(io: Server) {
         });
       }
 
-      cb?.({ state: E.publicState(s, { revealSolution: false }) });
+      cb?.({ state: E.publicState(s, { revealSolution: s.phase === 'end' }) });
     });
 
     socket.on('player:join', async (payload: { code: string; nickname: string; wantCaptain: boolean; reconnectTeamId?: string; targetTeamId?: string }, cb?: any) => {

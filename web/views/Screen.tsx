@@ -23,6 +23,16 @@ import { MANOR_INTRO_HTML, MANOR_CH1_HTML, MANOR_CH2_HTML, MANOR_CH3_HTML } from
 import { manorIntroFx, manorCh1Fx, manorCh2Fx } from '../screens/manor/effects';
 import { THEATRE_INTRO_HTML, THEATRE_CH1_HTML, THEATRE_CH2_HTML, THEATRE_CH3_HTML } from '../screens/theatre/html-sources';
 import { theatreIntroFx, theatreCh1Fx, theatreCh2Fx, theatreCh3Fx } from '../screens/theatre/effects';
+import {
+  MANOR_RESULT_1_HTML, MANOR_RESULT_2_HTML, MANOR_RESULT_3_HTML, MANOR_RESULT_4_HTML, MANOR_END_HTML
+} from '../screens/manor/result-sources';
+import { manorResult1Fx, manorResult2Fx, manorResult4Fx, manorEndFx } from '../screens/manor/result-effects';
+import {
+  THEATRE_RESULT_1_HTML, THEATRE_RESULT_2_HTML, THEATRE_RESULT_3_HTML, THEATRE_RESULT_4_HTML, THEATRE_END_HTML
+} from '../screens/theatre/result-sources';
+import { theatreResult1Fx, theatreResult2Fx, theatreResult3Fx, theatreResult4Fx, theatreEndFx } from '../screens/theatre/result-effects';
+import { UNIVERSAL_FINAL_HTML } from '../screens/final/html-sources';
+import { finalFx } from '../screens/final/effects';
 
 const fmt = (s: number) => {
   s = Math.max(0, s);
@@ -66,10 +76,8 @@ export default function Screen() {
       setBgUrl('');
       return;
     }
-    // Для theatre свои сцены на интро и главах 1–3; на остальных экранах — прежнее фото
-    const theatreHasScene =
-      sc?.id === 'theatre' &&
-      (state.phase === 'intro' || (state.phase === 'story' && state.round >= 1 && state.round <= 3));
+    // Для theatre свои сцены на интро и всех главах (включая финал) — фото-фон не нужен
+    const theatreHasScene = sc?.id === 'theatre' && (state.phase === 'intro' || state.phase === 'story');
     if (theatreHasScene) {
       setBgUrl('');
       return;
@@ -206,11 +214,23 @@ return (
       {scenario.id === 'manor' && phase === 'story' && round === 1 && <HtmlScene html={MANOR_CH1_HTML} effect={manorCh1Fx} />}
       {scenario.id === 'manor' && phase === 'story' && round === 2 && <HtmlScene html={MANOR_CH2_HTML} effect={manorCh2Fx} />}
       {scenario.id === 'manor' && phase === 'story' && round === 3 && <HtmlScene html={MANOR_CH3_HTML} />}
+      {scenario.id === 'manor' && phase === 'story' && round >= 4 && <HtmlScene html={UNIVERSAL_FINAL_HTML} effect={finalFx} />}
+      {scenario.id === 'manor' && phase === 'results' && round === 1 && <HtmlScene html={MANOR_RESULT_1_HTML} effect={manorResult1Fx} />}
+      {scenario.id === 'manor' && phase === 'results' && round === 2 && <HtmlScene html={MANOR_RESULT_2_HTML} effect={manorResult2Fx} />}
+      {scenario.id === 'manor' && phase === 'results' && round === 3 && <HtmlScene html={MANOR_RESULT_3_HTML} />}
+      {scenario.id === 'manor' && phase === 'results' && round >= 4 && <HtmlScene html={MANOR_RESULT_4_HTML} effect={manorResult4Fx} />}
+      {scenario.id === 'manor' && phase === 'end' && <HtmlScene html={MANOR_END_HTML} effect={manorEndFx} />}
 
       {scenario.id === 'theatre' && phase === 'intro' && <HtmlScene html={THEATRE_INTRO_HTML} effect={theatreIntroFx} />}
       {scenario.id === 'theatre' && phase === 'story' && round === 1 && <HtmlScene html={THEATRE_CH1_HTML} effect={theatreCh1Fx} />}
       {scenario.id === 'theatre' && phase === 'story' && round === 2 && <HtmlScene html={THEATRE_CH2_HTML} effect={theatreCh2Fx} />}
       {scenario.id === 'theatre' && phase === 'story' && round === 3 && <HtmlScene html={THEATRE_CH3_HTML} effect={theatreCh3Fx} />}
+      {scenario.id === 'theatre' && phase === 'story' && round >= 4 && <HtmlScene html={UNIVERSAL_FINAL_HTML} effect={finalFx} />}
+      {scenario.id === 'theatre' && phase === 'results' && round === 1 && <HtmlScene html={THEATRE_RESULT_1_HTML} effect={theatreResult1Fx} />}
+      {scenario.id === 'theatre' && phase === 'results' && round === 2 && <HtmlScene html={THEATRE_RESULT_2_HTML} effect={theatreResult2Fx} />}
+      {scenario.id === 'theatre' && phase === 'results' && round === 3 && <HtmlScene html={THEATRE_RESULT_3_HTML} effect={theatreResult3Fx} />}
+      {scenario.id === 'theatre' && phase === 'results' && round >= 4 && <HtmlScene html={THEATRE_RESULT_4_HTML} effect={theatreResult4Fx} />}
+      {scenario.id === 'theatre' && phase === 'end' && <HtmlScene html={THEATRE_END_HTML} effect={theatreEndFx} />}
 
       <Header
         phase={phase}
@@ -938,7 +958,7 @@ function Discussion({
           <i className="fa-solid fa-thumbtack text-accent text-base" />
           Доска улик
         </h3>
-        {roundClues.some(({ i }: any) => revealedClueIndices.includes(i)) && (
+        {roundClues.some(({ c, i }: any) => c.audioUrl && revealedClueIndices.includes(i)) && (
           <button
             onClick={playAll}
             className="px-4 py-2 rounded-lg border border-line bg-panel hover:bg-panel2 text-sm flex items-center gap-2"
