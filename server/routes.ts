@@ -350,7 +350,8 @@ function toTsObject(value: any, indent: number): string {
 
   // Email'ы, которым доступны все сюжеты (для тестирования)
   const FULL_ACCESS_EMAILS = [
-    '1,hottabbych.com@yandex.ru'   // ← впиши свой email сюда
+    '1',
+    'hottabbych.com@yandex.ru'   // ← впиши свой email сюда
   ];
 
   app.get('/api/scenarios', async (req) => {
