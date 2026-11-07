@@ -1631,21 +1631,12 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
       </h1>
       <div className="text-[15px] text-[#b3a698] leading-relaxed max-w-[720px] mb-8">
         <p className="m-0 mb-2">
-          С вами были <b className="text-accent font-semibold">ваш Пивотаун</b> и{' '}
-          <b className="text-accent font-semibold">«Тайна за столом»</b>. До встречи в новых
-          расследованиях!
+          Спасибо за игру! До встречи в новых расследованиях — каждое дело
+          хранит свою тайну.
         </p>
         <p className="m-0">
-          Больше игр и событий — на сайте{' '}
-          <a
-            href="https://xn--b1aecbkqj0d.xn--p1ai"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent underline decoration-accent/40 hover:decoration-accent transition-colors"
-          >
-            пивотаун.рф
-          </a>
-          .
+          Соберите друзей за столом и попробуйте раскрыть следующее
+          преступление.
         </p>
       </div>
       <div className="bg-panel border border-line rounded-2xl overflow-x-auto mb-10">
