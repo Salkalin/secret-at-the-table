@@ -348,9 +348,30 @@ function toTsObject(value: any, indent: number): string {
   return 'undefined';
 }
 
-  app.get('/api/scenarios', async () => {
-  const list = await getAllScenariosMerged();
-  return list.map(s => ({ id: s.id, title: s.title, description: s.description, icon: s.icon }));
+  // Email'ы, которым доступны все сюжеты (для тестирования)
+  const FULL_ACCESS_EMAILS = [
+    '1'   // ← впиши свой email сюда
+  ];
+
+  app.get('/api/scenarios', async (req) => {
+    const auth = A.getAuthFromCookie(req);
+    let email = '';
+    if (auth?.uid) {
+      const user = await prisma.user.findUnique({ where: { id: auth.uid } });
+      email = (user?.email ?? '').toLowerCase();
+    }
+    const hasFullAccess = FULL_ACCESS_EMAILS
+      .map(e => e.toLowerCase())
+      .includes(email);
+
+    const list = await getAllScenariosMerged();
+    return list.map(s => ({
+      id: s.id,
+      title: s.title,
+      description: s.description,
+      icon: s.icon,
+      isLocked: s.id !== 'dinner' && !hasFullAccess
+    }));
   });
 
   app.get('/api/session/:code', async (req, reply) => {
