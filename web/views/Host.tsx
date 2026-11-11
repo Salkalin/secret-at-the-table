@@ -196,11 +196,31 @@ export default function Host() {
         })}
       </div>
 
-      <div className="flex justify-between items-center gap-5 flex-wrap pt-6 border-t border-line mb-10">
-        <p className="text-[14px] leading-snug text-muted max-w-[460px] m-0">
-          Обсуждайте улики вместе. Когда будете уверены — выдвигайте обвинение.
-          Ошибётесь, и убийца уйдёт безнаказанным.
-        </p>
+    <div className="flex justify-between items-center gap-5 flex-wrap pt-6 border-t border-line mb-10">
+      <p className="text-[14px] leading-snug text-muted max-w-[460px] m-0">
+        Обсуждайте улики вместе. Когда будете уверены — выдвигайте обвинение.
+        Ошибётесь, и убийца уйдёт безнаказанным.
+      </p>
+      <div className="flex gap-3 flex-wrap">
+        <button
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const r = await api<{ code: string }>('/api/host/sessions', {
+                method: 'POST',
+                body: JSON.stringify({ scenarioId: 'dinner', isDemo: true })
+              });
+              location.href = `/screen/${r.code}`;
+            } catch {
+              setBusy(false);
+              alert('Не удалось создать демо-сессию');
+            }
+          }}
+          disabled={busy}
+          className="px-6 py-3.5 rounded-xl border border-accent text-accent font-bold text-[15px] inline-flex items-center gap-2.5 hover:bg-accent/10 disabled:opacity-40 transition"
+        >
+          Демо-режим <i className="fa-solid fa-eye" />
+        </button>
         <button
           onClick={createSession}
           disabled={busy || scens.length === 0}
@@ -210,6 +230,7 @@ export default function Host() {
           <i className="fa-solid fa-arrow-right" />
         </button>
       </div>
+    </div>
     </div>
   );
 }

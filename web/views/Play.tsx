@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { getSocket } from '../socket';
 import { useSpeech } from '../SpeechContext';
+import { api } from '../api';
+
 
 // ============================================================
 // УТИЛИТЫ
@@ -179,6 +181,7 @@ export default function Play() {
   const [state, setState] = useState<any>(null);
   const [nickname, setNickname] = useState('');
   const [wantCaptain, setWantCaptain] = useState(true);
+  const [isDemoSession, setIsDemoSession] = useState(false);
   const [joined, setJoined] = useState(false);
   const [isCaptain, setIsCaptain] = useState(false);
   const [teamId, setTeamId] = useState<string | null>(null);
@@ -191,12 +194,23 @@ export default function Play() {
   const [showTeamPicker, setShowTeamPicker] = useState(false);
   const [teamList, setTeamList] = useState<any[]>([]);
 
+  useEffect(() => {
+    if (!code) return;
+    api<any>(`/api/session/${code}`)
+      .then((s: any) => {
+        if (s?.isDemo) setIsDemoSession(true);
+      })
+      .catch(() => {});
+  }, [code]);
+
   const trace = (event: string, data?: any) => {
     if (!code) return;
     try {
       sock.current.emit('client:trace', { code, event, data });
     } catch {}
   };
+
+
 
   useEffect(() => {
     const s = sock.current;
@@ -280,7 +294,7 @@ export default function Play() {
     }
 
     // Участник — если ещё не выбрал стол, открываем picker
-    if (!wantCaptain && !state) {
+    if (!wantCaptain && !state && !isDemoSession) {
       // эмитим player:join с wantCaptain:false и targetTeamId:undefined — сервер вернёт state с teams
       sock.current.emit(
         'player:join',
@@ -323,7 +337,7 @@ export default function Play() {
 
     sock.current.emit(
       'player:join',
-      { code, nickname: v, wantCaptain, reconnectTeamId },
+      { code, nickname: v, wantCaptain: isDemoSession ? true : wantCaptain, reconnectTeamId },
       (res: any) => {
         joinedRef.current = false;
         if (res?.error) {
@@ -404,6 +418,7 @@ export default function Play() {
         setWantCaptain={setWantCaptain}
         onJoin={join}
         err={err}
+        isDemo={isDemoSession}
       />
     );
   }
@@ -501,15 +516,7 @@ export default function Play() {
 // ЭКРАН 1: ВХОД
 // ============================================================
 
-function JoinScreen({
-  code,
-  nickname,
-  setNickname,
-  wantCaptain,
-  setWantCaptain,
-  onJoin,
-  err
-}: any) {
+function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, onJoin, err, isDemo }: any) {
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -537,6 +544,7 @@ function JoinScreen({
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (isDemo) setWantCaptain(true);  // ← для демо всегда капитан
     setBusy(true);
     onJoin();
     setTimeout(() => setBusy(false), 1200);
@@ -625,7 +633,7 @@ function JoinScreen({
           </div>
 
           {err && <div className="text-[12px] text-[#c96a52] mb-3">{err}</div>}
-
+      {!isDemo && (
           <div className="grid grid-cols-2 gap-2.5 mb-6">
             <button
               type="button"
@@ -672,15 +680,13 @@ function JoinScreen({
               </div>
             </button>
           </div>
-
+          )}
           <button
             type="submit"
             disabled={nickname.trim().length < 2 || busy}
             className="w-full h-[54px] rounded-[10px] bg-[#9b3f2c] text-[#f6ece4] text-[15px] font-semibold tracking-[.06em] flex items-center justify-center gap-2.5 hover:bg-[#b24a33] active:scale-[.98] disabled:bg-[#3a2621] disabled:text-[#7d6760] disabled:cursor-not-allowed transition"
           >
-            <span>
-              {busy ? 'Подключаемся…' : wantCaptain ? 'Создать стол' : 'Войти'}
-            </span>
+            <span>{busy ? 'Подключаемся…' : (isDemo || wantCaptain) ? 'Создать стол' : 'Войти'}</span>
             <i
               className={`fa-solid ${
                 busy ? 'fa-circle-notch animate-spin' : 'fa-arrow-right'

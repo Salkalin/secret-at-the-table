@@ -183,35 +183,36 @@ export async function routes(app: FastifyInstance) {
     });
   });
 
-  app.post('/api/host/sessions', async (req, reply) => {
-    const auth = A.getAuthFromCookie(req);
-    if (!auth) return reply.code(401).send({ error: 'unauthorized' });
-    const { scenarioId } = (req.body as any) || {};
-    const sc = await getScenarioMerged(scenarioId);
-    if (!sc) return reply.code(400).send({ error: 'bad_scenario' });
+app.post('/api/host/sessions', async (req, reply) => {
+  const auth = A.getAuthFromCookie(req);
+  if (!auth) return reply.code(401).send({ error: 'unauthorized' });
+  const { scenarioId, isDemo } = (req.body as any) || {};
+  const sc = await getScenarioMerged(scenarioId);
+  if (!sc) return reply.code(400).send({ error: 'bad_scenario' });
 
-    let code = E.generateCode();
-    while (await prisma.gameSession.findUnique({ where: { code } })) code = E.generateCode();
+  let code = E.generateCode();
+  while (await prisma.gameSession.findUnique({ where: { code } })) code = E.generateCode();
 
-    const state = E.createInitialState(code, sc.id);
-    state.scenarioData = sc;
-    const session = await prisma.gameSession.create({
-      data: { code, hostId: auth.uid, scenario: sc.id, state: state as any, status: 'lobby' }
-    });
-    setSession(code, state);
-
-    await log({
-      sessionId: session.id, code, event: 'session:create', actor: auth.uid,
-      payload: {
-        scenarioId: sc.id, scenarioTitle: sc.title,
-        suspectsCount: sc.suspects.length,
-        cluesCount: sc.clues.length,
-        totalRounds: state.totalRounds
-      }
-    });
-
-    return { code, id: session.id };
+  const state = E.createInitialState(code, sc.id, !!isDemo);
+  state.scenarioData = sc;
+  const session = await prisma.gameSession.create({
+    data: { code, hostId: auth.uid, scenario: sc.id, state: state as any, status: 'lobby' }
   });
+  setSession(code, state);
+
+  await log({
+    sessionId: session.id, code, event: 'session:create', actor: auth.uid,
+    payload: {
+      scenarioId: sc.id, scenarioTitle: sc.title,
+      suspectsCount: sc.suspects.length,
+      cluesCount: sc.clues.length,
+      totalRounds: state.totalRounds,
+      isDemo: !!isDemo
+    }
+  });
+
+  return { code, id: session.id };
+});
 
 // ============================================
 // Admin: editor for scenarios

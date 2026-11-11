@@ -258,19 +258,31 @@ return (
           trace={trace}
         />
       )}
-
       {phase === 'intro' && (
-        <Intro scenario={scenario} advance={advance} goBack={goBack} busy={busy} />
+        state.isDemo ? (
+          <DemoIntro scenario={scenario} advance={advance} busy={busy} />
+        ) : (
+          <Intro scenario={scenario} advance={advance} goBack={goBack} busy={busy} />
+        )
       )}
 
       {phase === 'story' && (
-        <Story
-          chapter={chapter}
-          round={round}
-          advance={advance}
-          goBack={goBack}
-          busy={busy}
-        />
+        state.isDemo ? (
+          <DemoStory
+            chapter={chapter}
+            clues={clues}
+            advance={advance}
+            busy={busy}
+          />
+        ) : (
+          <Story
+            chapter={chapter}
+            round={round}
+            advance={advance}
+            goBack={goBack}
+            busy={busy}
+          />
+        )
       )}
 
       {phase === 'discussion' && (
@@ -1727,6 +1739,132 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
         >
           Новое дело
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// DEMO STORY — упрощённый экран главы для демо-режима
+// ============================================================
+
+function DemoStory({ chapter, clues, advance, busy }: any) {
+  console.log('DEMO clues =', clues?.length, clues);
+  return (
+    <div className="max-w-[780px] mt-6">
+      <div className="text-[11px] font-bold tracking-[0.22em] uppercase text-accent mb-3">
+        Глава 1
+      </div>
+      <h1 className="font-serif text-[clamp(44px,6vw,72px)] leading-none text-text font-semibold mb-4">
+        {chapter?.title || 'Преступление'}
+      </h1>
+      {chapter?.atmosphere && (
+        <div className="flex items-center gap-2.5 font-mono text-[12.5px] text-muted mb-8">
+          <i className="fa-solid fa-feather-pointed text-accent text-[13px]" />
+          <span>{chapter.atmosphere}</span>
+        </div>
+      )}
+      <p className="my-8 pl-7 border-l-2 border-accent text-[18px] leading-[1.75] text-text max-w-[680px]">
+        {chapter?.text || ''}
+      </p>
+
+      {/* Кнопка — сразу после текста */}
+      <button
+        onClick={advance}
+        disabled={busy}
+        className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition mb-10"
+      >
+        К голосованию <i className="fa-solid fa-gavel" />
+      </button>
+
+      {/* Улики — снизу, под кнопкой */}
+      <div className="mb-4">
+        <div className="text-[11px] font-bold tracking-[.2em] uppercase text-muted mb-4">
+          Улики · Глава 1
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {(clues || []).map((c: any, i: number) => (
+            <div
+              key={i}
+              className="bg-[#f3e6cf] text-[#2a1c14] rounded-lg p-4 flex flex-col"
+              style={{ boxShadow: '0 16px 40px -22px rgba(0,0,0,.8)' }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-7 h-7 rounded-lg bg-[#1d120c] text-[#efe3cc] grid place-items-center">
+                  <i className={`fa-solid ${c.icon} text-[12px]`} />
+                </span>
+                <b className="text-[13px] font-bold">{c.name}</b>
+              </div>
+              <p className="m-0 text-[12px] leading-relaxed flex-1">{c.desc}</p>
+              <small className="mt-3 pt-2 border-t border-dashed border-[rgba(42,28,20,.22)] text-[9.5px] tracking-[.14em] uppercase text-[#8a6a52] font-bold">
+                {c.type}
+              </small>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DemoIntro({ scenario, advance, busy }: any) {
+  return (
+    <div className="grid md:grid-cols-2 gap-10 lg:gap-16 items-start">
+      <div>
+        <div className="text-[11px] font-bold tracking-[.2em] uppercase text-accent mb-3">
+          Демо · Правила игры
+        </div>
+        <h1 className="font-serif text-[clamp(44px,5.5vw,72px)] leading-none text-text font-semibold mb-4">
+          {scenario.title}
+        </h1>
+        <p className="text-[16px] text-[#cdbca8] leading-relaxed mb-8">
+          {scenario.description}
+        </p>
+
+        <dl className="space-y-5 m-0">
+          <div>
+            <dt className="text-[10.5px] tracking-[.2em] uppercase text-accent font-bold mb-1.5">Преступление</dt>
+            <dd className="m-0 text-[15px] text-text">{scenario.crime}</dd>
+          </div>
+          <div>
+            <dt className="text-[10.5px] tracking-[.2em] uppercase text-accent font-bold mb-1.5">Жертва</dt>
+            <dd className="m-0 text-[15px] text-text">{scenario.victim}</dd>
+          </div>
+          <div>
+            <dt className="text-[10.5px] tracking-[.2em] uppercase text-accent font-bold mb-1.5">Место</dt>
+            <dd className="m-0 text-[15px] text-text">{scenario.location}</dd>
+          </div>
+        </dl>
+
+        <div className="flex gap-3 mt-10 flex-wrap">
+          <button
+            onClick={advance}
+            disabled={busy}
+            className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
+          >
+            Начать главу <i className="fa-solid fa-arrow-right" />
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="font-serif text-[26px] text-text flex items-center gap-3 m-0 mb-4">
+          <i className="fa-solid fa-scroll text-accent text-base" />
+          Правила игры
+        </h3>
+        <ol className="list-none p-0 m-0 space-y-2.5">
+          {GAME_RULES.map((r: any) => (
+            <li key={r.n} className="flex gap-4 p-4 rounded-xl bg-panel border border-line">
+              <span className="flex-none w-8 h-8 rounded-full border border-accent text-accent grid place-items-center text-[11px] font-bold">
+                {r.n}
+              </span>
+              <div>
+                <h4 className="text-[14.5px] text-text font-bold m-0 mb-1">{r.title}</h4>
+                <p className="text-[13px] text-[#b9a898] leading-snug m-0 whitespace-pre-line">{r.text}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
       </div>
     </div>
   );

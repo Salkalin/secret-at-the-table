@@ -8,6 +8,7 @@ import Host from './views/Host';
 import Screen from './views/Screen';
 import Play from './views/Play';
 
+
 export default function App() {
   const location = useLocation();
   const isLanding = location.pathname === '/';

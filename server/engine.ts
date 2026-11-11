@@ -23,6 +23,7 @@ export type TeamState = {
 export type GameState = {
   code: string;
   scenarioId: string;
+  isDemo?: boolean;
   scenarioData?: Scenario;
   phase: Phase;
   round: number;
@@ -44,10 +45,11 @@ export const CLUE_TIMES_SEC = [180, 300, 420];
 
 export const TOTAL_ROUNDS = 4;
 
-export function createInitialState(code: string, scenarioId: string): GameState {
+export function createInitialState(code: string, scenarioId: string, isDemo = false): GameState {
   return {
     code,
     scenarioId,
+    isDemo,
     phase: 'lobby',
     round: 0,
     totalRounds: TOTAL_ROUNDS,
@@ -112,17 +114,34 @@ export function nextPhase(s: GameState): GameState {
   };
   switch (s.phase) {
     case 'lobby':
-      ns.phase = 'intro';
+      if (s.isDemo) {
+        ns.phase = 'intro';
+      } else {
+        ns.phase = 'intro';
+      }
       break;
     case 'intro':
       ns.phase = 'story';
       ns.round = 1;
       ns.roundStartedAt = Date.now();
-      ns.roundDurationSec = 600; // 10 минут
+      ns.roundDurationSec = s.isDemo ? 3600 : 600;
+      if (s.isDemo) {
+        // Демо: сразу раскрываем все улики главы 1
+        sc.clues.forEach((c, i) => {
+          if (c.round === 1) ns.revealedClues.push(i);
+        });
+      }
       break;
     case 'story':
-      ns.phase = 'discussion';
-      ns.roundStartedAt = Date.now();
+      if (s.isDemo) {
+        // Демо: сразу в голосование (без обсуждения)
+        ns.phase = 'voting';
+        ns.votingStartedAt = Date.now();
+        ns.teams.forEach(t => (t.vote = null));
+      } else {
+        ns.phase = 'discussion';
+        ns.roundStartedAt = Date.now();
+      }
       break;
     case 'discussion':
       ns.phase = 'voting';
@@ -163,6 +182,16 @@ export function nextPhase(s: GameState): GameState {
         result.perTeam.push({ teamId: t.id, vote: t.vote, correct });
       });
 
+      ns.votingStartedAt = null;
+
+      if (s.isDemo) {
+        // Демо: сразу к таблице результатов (без разгадки и без end)
+        ns.phase = 'results-final';
+        ns.finishedAt = Date.now();
+        ns.lastResult = result;
+        break;
+      }
+
       if (ns.round < ns.totalRounds) {
         const elimId = pickElimination(ns);
         if (elimId) {
@@ -171,11 +200,9 @@ export function nextPhase(s: GameState): GameState {
         }
         ns.phase = 'results';
       } else {
-        // 4-й раунд → сначала results (Виктор), потом end
         ns.phase = 'results';
         ns.round = 4;
       }
-      ns.votingStartedAt = null;
       ns.lastResult = result;
       break;
     }
@@ -250,8 +277,7 @@ export function prevPhase(s: GameState): GameState {
 }
 
 export function resetSession(s: GameState): GameState {
-  // Полный сброс: убираем все столы и участников — игра начинается с нуля
-  return createInitialState(s.code, s.scenarioId);
+  return createInitialState(s.code, s.scenarioId, s.isDemo);
 }
 
 export function publicState(s: GameState, opts: { revealSolution: boolean }) {
@@ -262,6 +288,7 @@ export function publicState(s: GameState, opts: { revealSolution: boolean }) {
   const base: any = {
     code: s.code,
     phase: s.phase,
+    isDemo: s.isDemo,
     round: s.round,
     totalRounds: s.totalRounds,
     teams: s.teams,
