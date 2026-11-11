@@ -562,10 +562,7 @@ function Lobby({ code, qr, teams, advance, goBack, busy, sock, trace }: any) {
           </button>
 
           <button
-            onClick={async () => {
-              try {
-                await fetch('/api/logout', { method: 'POST' });
-              } catch {}
+            onClick={() => {
               trace('host_close_click', {});
               sock.current.emit('host:close', { code });
               window.location.href = '/host';
@@ -1512,11 +1509,10 @@ function EndView({ state, onReset, onShowResults, code, sock, trace }: any) {
           Сыграть это дело снова
         </button>
         <button
-          onClick={async () => {
-            try { await fetch('/api/logout', { method: 'POST' }); } catch {}
+          onClick={() => {
             trace?.('host_close_click', {});
             sock.current.emit('host:close', { code });
-            window.location.href = '/host';
+            window.location.href = '/host'; // или '/', если экран выбора сюжета находится на корне
           }}
           className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] inline-flex items-center"
         >
@@ -1720,11 +1716,10 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
           Сыграть это дело снова
         </button>
         <button
-          onClick={async () => {
-            try { await fetch('/api/logout', { method: 'POST' }); } catch {}
+          onClick={() => {
             trace?.('host_close_click', {});
             sock.current.emit('host:close', { code });
-            window.location.href = '/host';
+            window.location.href = '/host'; // или '/', если экран выбора сюжета находится на корне
           }}
           className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] inline-flex items-center"
         >
