@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { getSocket } from '../socket';
-import { useSpeech } from '../SpeechContext';
 import { useAudio, useAudioButton } from '../audio';
 import { ROMAN, GAME_RULES, GAME_NOTE, REVEAL_MARKS, ROUND_SECONDS } from '../landing/data';
 import {
@@ -56,7 +55,6 @@ export default function Screen() {
   const [busy, setBusy] = useState(false);
   const [accuseOpen, setAccuseOpen] = useState(false);
   const sock = useRef(getSocket());
-  const speech = useSpeech();
   const audio = useAudio();
   const [bgUrl, setBgUrl] = useState<string>('');
   const joinedRef = useRef(false);
@@ -239,7 +237,6 @@ return (
         totalRounds={totalRounds}
         teamsCount={teams.length}
         cluesCount={clues.length}
-        speech={speech}
       />
       {/* ⬇ ОТКРЫВАЕМ ОБЁРТКУ ⬇ */}
       <div
@@ -395,7 +392,6 @@ return (
         <EndView
           state={state}
           onReset={reset}
-          speech={speech}
           onShowResults={advance}
           code={code}
           sock={sock}
@@ -434,8 +430,7 @@ function Header({
   round,
   totalRounds,
   teamsCount,
-  cluesCount,
-  speech
+  cluesCount
 }: any) {
   const phaseLabel: Record<string, string> = {
     lobby: 'Лобби',
@@ -456,20 +451,7 @@ function Header({
         <span className="text-[13px] text-muted">{scenario.location}</span>
       </div>
       <div className="flex gap-2 flex-wrap">
-        {speech.supported && (
-          <button
-            onClick={() => speech.setEnabled(!speech.enabled)}
-            className={
-              'px-3.5 py-2 rounded-full border text-[11px] font-bold tracking-wider uppercase transition ' +
-              (speech.enabled
-                ? 'border-accent text-accent'
-                : 'border-line text-muted hover:text-text')
-            }
-            title={speech.enabled ? 'Отключить синтез речи' : 'Включить синтез речи'}
-          >
-            {speech.enabled ? '🔊' : '🔇'}
-          </button>
-        )}
+
         {phase !== 'lobby' && phase !== 'end' && (
           <span className="px-3.5 py-2 rounded-full border border-line bg-panel text-[11px] font-bold tracking-wider uppercase">
             <i className="fa-solid fa-layer-group text-accent mr-2" />
@@ -1456,7 +1438,7 @@ function Results({
 // END
 // ============================================================
 
-function EndView({ state, onReset, speech, onShowResults, code, sock, trace }: any) {
+function EndView({ state, onReset, onShowResults, code, sock, trace }: any) {
   const solutionAudio = useAudioButton(state.solutionAudioUrl);
   const killer = (state.fullSuspects || []).find((s: any) => s.isGuilty);
 
@@ -1481,25 +1463,6 @@ function EndView({ state, onReset, speech, onShowResults, code, sock, trace }: a
             <i className={`fa-solid ${solutionAudio.playing ? 'fa-pause' : 'fa-volume-high'}`} />
             {solutionAudio.playing ? 'Пауза' : 'Озвучить разгадку'}
           </button>
-        </div>
-      )}
-
-      {speech.supported && (
-        <div className="mb-8 flex gap-3 flex-wrap">
-          <button
-            onClick={() => speech.speak(state.solution, { rate: 0.92, pitch: 1.05 })}
-            className="px-4 py-2 rounded-lg border border-line bg-panel hover:bg-panel2 text-sm"
-          >
-            🔊 Озвучить (синтез)
-          </button>
-          {speech.speaking && (
-            <button
-              onClick={speech.stop}
-              className="px-4 py-2 rounded-lg border border-accent text-accent text-sm"
-            >
-              ⏹ Остановить
-            </button>
-          )}
         </div>
       )}
 

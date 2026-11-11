@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { getSocket } from '../socket';
-import { useSpeech } from '../SpeechContext';
 import { api } from '../api';
 
 
@@ -187,7 +186,6 @@ export default function Play() {
   const [teamId, setTeamId] = useState<string | null>(null);
   const [err, setErr] = useState('');
   const sock = useRef(getSocket());
-  const speech = useSpeech();
   const didReconnect = useRef(false);
   const lastStateRef = useRef<any>(null);
   const joinedRef = useRef(false);
