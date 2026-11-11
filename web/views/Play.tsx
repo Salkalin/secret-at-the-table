@@ -488,6 +488,7 @@ export default function Play() {
         onVote={vote}
         votingStartedAt={state.votingStartedAt}
         votingDurationSec={state.votingDurationSec || 60}
+        isDemo={isDemoSession}
       />
     );
   }
@@ -1124,7 +1125,8 @@ function VotingScreen({
   teams,
   onVote,
   votingStartedAt,
-  votingDurationSec
+  votingDurationSec,
+  isDemo
 }: any) {
   const [selected, setSelected] = useState<number | null>(null);
   const voted = !!myTeam?.vote;
@@ -1301,7 +1303,7 @@ function VotingScreen({
         <div className="max-w-[440px] mx-auto">
           <div className="font-['IBM_Plex_Mono'] text-[11px] tracking-[.08em] text-center text-[#6f675a] mb-2.5 min-h-[17px] flex items-center justify-center gap-3">
             <span>{hint}</span>
-          {!voted && <VotingCountdown votingStartedAt={votingStartedAt} />}
+          {!voted && !isDemo && <VotingCountdown votingStartedAt={votingStartedAt} />}
           </div>
           <button
             onClick={submit}

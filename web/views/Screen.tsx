@@ -309,58 +309,86 @@ return (
               Голосование
             </h2>
             <p className="text-muted max-w-[560px] mx-auto">
-              Капитаны команд выбирают подозреваемого <b>на своих телефонах</b>.
+              {state.isDemo
+                ? 'Изучите улики. Затем капитаны команд выбирают подозреваемого на своих телефонах.'
+                : <>Капитаны команд выбирают подозреваемого <b>на своих телефонах</b>.</>}
             </p>
-            <div className="mt-4 text-2xl font-mono text-accent tabular-nums">
-              <VotingCountdown
-                votingStartedAt={state.votingStartedAt}
-                duration={state.votingDurationSec || 60}
-              />
-            </div>
+            {!state.isDemo && (
+              <div className="mt-4 text-2xl font-mono text-accent tabular-nums">
+                <VotingCountdown
+                  votingStartedAt={state.votingStartedAt}
+                  duration={state.votingDurationSec || 60}
+                />
+              </div>
+            )}
           </div>
 
-<div
-  className={
-    'grid gap-4 mx-auto mb-10 ' +
-    (aliveSuspects.length === 1
-      ? 'grid-cols-1 max-w-md'
-      : aliveSuspects.length === 2
-      ? 'grid-cols-1 md:grid-cols-2 max-w-2xl'
-      : 'md:grid-cols-2 lg:grid-cols-3 max-w-[1200px]')
-  }
->
-  {aliveSuspects.map((s: any) => (
-              <div
-                key={s.id}
-                className="bg-panel border border-line rounded-2xl p-5 flex flex-col"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="w-12 h-12 rounded-full grid place-items-center bg-panel2 border border-line text-accent text-lg flex-none">
-                    <i className={`fa-solid ${s.icon}`} />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="font-serif text-xl text-text leading-tight">
-                      {s.name}
+          {/* ⬇ Для демо — улики, для обычной игры — подозреваемые ⬇ */}
+          {state.isDemo ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mx-auto mb-10 max-w-[1200px]">
+              {(state.clues || []).map((c: any, i: number) => (
+                <div
+                  key={i}
+                  className="bg-[#f3e6cf] text-[#2a1c14] rounded-lg p-5 flex flex-col min-h-[190px]"
+                  style={{ boxShadow: '0 16px 40px -22px rgba(0,0,0,.8)' }}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="w-8 h-8 rounded-lg bg-[#1d120c] text-[#efe3cc] grid place-items-center">
+                      <i className={`fa-solid ${c.icon} text-[13px]`} />
+                    </span>
+                    <b className="text-[14.5px] font-bold">{c.name}</b>
+                  </div>
+                  <p className="m-0 flex-1 text-[13px] leading-relaxed">{c.desc}</p>
+                  <small className="mt-3 pt-2 border-t border-dashed border-[rgba(42,28,20,.22)] text-[10px] tracking-[.14em] uppercase text-[#8a6a52] font-bold">
+                    {c.type}
+                  </small>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div
+              className={
+                'grid gap-4 mx-auto mb-10 ' +
+                (aliveSuspects.length === 1
+                  ? 'grid-cols-1 max-w-md'
+                  : aliveSuspects.length === 2
+                  ? 'grid-cols-1 md:grid-cols-2 max-w-2xl'
+                  : 'md:grid-cols-2 lg:grid-cols-3 max-w-[1200px]')
+              }
+            >
+              {aliveSuspects.map((s: any) => (
+                <div
+                  key={s.id}
+                  className="bg-panel border border-line rounded-2xl p-5 flex flex-col"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="w-12 h-12 rounded-full grid place-items-center bg-panel2 border border-line text-accent text-lg flex-none">
+                      <i className={`fa-solid ${s.icon}`} />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-serif text-xl text-text leading-tight">
+                        {s.name}
+                      </div>
+                      <div className="text-[10.5px] tracking-wider uppercase text-muted">
+                        {s.role}
+                      </div>
                     </div>
-                    <div className="text-[10.5px] tracking-wider uppercase text-muted">
-                      {s.role}
+                  </div>
+                  <div className="text-[13px] text-muted leading-snug mb-3">
+                    {s.description}
+                  </div>
+                  <div className="text-[12px] text-muted mt-auto pt-3 border-t border-line/60">
+                    <div>
+                      <span className="text-accent">Мотив:</span> {s.motive}
+                    </div>
+                    <div className="mt-1">
+                      <span className="text-accent">Алиби:</span> {s.alibi}
                     </div>
                   </div>
                 </div>
-                <div className="text-[13px] text-muted leading-snug mb-3">
-                  {s.description}
-                </div>
-                <div className="text-[12px] text-muted mt-auto pt-3 border-t border-line/60">
-                  <div>
-                    <span className="text-accent">Мотив:</span> {s.motive}
-                  </div>
-                  <div className="mt-1">
-                    <span className="text-accent">Алиби:</span> {s.alibi}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           <div className="flex justify-center">
             <button
@@ -1711,8 +1739,7 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
 // DEMO STORY — упрощённый экран главы для демо-режима
 // ============================================================
 
-function DemoStory({ chapter, clues, advance, busy }: any) {
-  console.log('DEMO clues =', clues?.length, clues);
+function DemoStory({ chapter, advance, busy }: any) {
   return (
     <div className="max-w-[780px] mt-6">
       <div className="text-[11px] font-bold tracking-[0.22em] uppercase text-accent mb-3">
@@ -1730,42 +1757,13 @@ function DemoStory({ chapter, clues, advance, busy }: any) {
       <p className="my-8 pl-7 border-l-2 border-accent text-[18px] leading-[1.75] text-text max-w-[680px]">
         {chapter?.text || ''}
       </p>
-
-      {/* Кнопка — сразу после текста */}
       <button
         onClick={advance}
         disabled={busy}
-        className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition mb-10"
+        className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
       >
         К голосованию <i className="fa-solid fa-gavel" />
       </button>
-
-      {/* Улики — снизу, под кнопкой */}
-      <div className="mb-4">
-        <div className="text-[11px] font-bold tracking-[.2em] uppercase text-muted mb-4">
-          Улики · Глава 1
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {(clues || []).map((c: any, i: number) => (
-            <div
-              key={i}
-              className="bg-[#f3e6cf] text-[#2a1c14] rounded-lg p-4 flex flex-col"
-              style={{ boxShadow: '0 16px 40px -22px rgba(0,0,0,.8)' }}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-7 h-7 rounded-lg bg-[#1d120c] text-[#efe3cc] grid place-items-center">
-                  <i className={`fa-solid ${c.icon} text-[12px]`} />
-                </span>
-                <b className="text-[13px] font-bold">{c.name}</b>
-              </div>
-              <p className="m-0 text-[12px] leading-relaxed flex-1">{c.desc}</p>
-              <small className="mt-3 pt-2 border-t border-dashed border-[rgba(42,28,20,.22)] text-[9.5px] tracking-[.14em] uppercase text-[#8a6a52] font-bold">
-                {c.type}
-              </small>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
