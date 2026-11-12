@@ -258,10 +258,8 @@ export function attachSocket(io: Server) {
       sessions.set(code, ns);
       stopClueTimer(code);
       if (ns.phase === 'discussion') startClueTimer(io, code);
-      if (ns.phase === 'voting') {
-        const start = (socket as any).__startVotingTimer as
-          | ((c: string) => void)
-          | undefined;
+      if (ns.phase === 'voting' && !ns.isDemo) {
+        const start = (socket as any).__startVotingTimer as ((c: string) => void) | undefined;
         start?.(code);
       }
 
@@ -547,6 +545,7 @@ export function attachSocket(io: Server) {
       const t = setTimeout(async () => {
         const s = sessions.get(code);
         if (!s || s.phase !== 'voting') return;
+        if (s.isDemo) return;  // ← демо не должно авто-переходить
         const ns = E.nextPhase(s);
         sessions.set(code, ns);
         const dbS = await prisma.gameSession.findUnique({ where: { code } });
