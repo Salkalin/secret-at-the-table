@@ -43,6 +43,7 @@ export type Scenario = {
   suspects: Suspect[];
   clues: Clue[];
   solution: string;
+  isCustom?: boolean;
   solutionAudioUrl?: string;
   rulesAudioUrl?: string;
   eliminationOrder?: string[];

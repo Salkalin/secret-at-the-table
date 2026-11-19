@@ -202,6 +202,27 @@ export default function Host() {
         Ошибётесь, и убийца уйдёт безнаказанным.
       </p>
       <div className="flex gap-3 flex-wrap">
+
+        <button
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const r = await api<{ code: string }>('/api/host/sessions', {
+                method: 'POST',
+                body: JSON.stringify({ isCustom: true })
+              });
+              location.href = `/screen/${r.code}`;
+            } catch {
+              setBusy(false);
+              alert('Не удалось создать конструктор');
+            }
+          }}
+          disabled={busy}
+          className="px-6 py-3.5 rounded-xl border border-[#3fb39c] text-[#3fb39c] font-bold text-[15px] inline-flex items-center gap-2.5 hover:bg-[#3fb39c]/10 disabled:opacity-40 transition"
+        >
+          Создать своё <i className="fa-solid fa-feather-pointed" />
+        </button>
+
         <button
           onClick={async () => {
             setBusy(true);

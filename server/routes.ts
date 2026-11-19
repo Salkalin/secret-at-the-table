@@ -233,24 +233,89 @@ export async function routes(app: FastifyInstance) {
 app.post('/api/host/sessions', async (req, reply) => {
   const auth = A.getAuthFromCookie(req);
   if (!auth) return reply.code(401).send({ error: 'unauthorized' });
-  const { scenarioId, isDemo } = (req.body as any) || {};
+
+  const {
+    scenarioId,
+    isDemo,
+    isCustom,
+    totalRounds,
+    roundDurationSec
+  } = (req.body as any) || {};
+
+  // ============================================================
+  // КОНСТРУКТОР: своя игра
+  // ============================================================
+  if (isCustom) {
+    let code = E.generateCode();
+    while (await prisma.gameSession.findUnique({ where: { code } })) {
+      code = E.generateCode();
+    }
+
+    const state = E.createInitialState(code, 'custom', false, {
+      isCustom: true,
+      totalRounds: totalRounds || 3,
+      roundDurationSec: roundDurationSec || 600
+    });
+
+    const session = await prisma.gameSession.create({
+      data: {
+        code,
+        hostId: auth.uid,
+        scenario: 'custom',
+        state: state as any,
+        status: 'lobby'
+      }
+    });
+    setSession(code, state);
+
+    await log({
+      sessionId: session.id,
+      code,
+      event: 'session:create',
+      actor: auth.uid,
+      payload: {
+        isCustom: true,
+        totalRounds: state.totalRounds,
+        roundDurationSec: state.roundDurationSec
+      }
+    });
+
+    return { code, id: session.id };
+  }
+
+  // ============================================================
+  // ОБЫЧНЫЙ СЦЕНАРИЙ (как было)
+  // ============================================================
   const sc = await getScenarioMerged(scenarioId);
   if (!sc) return reply.code(400).send({ error: 'bad_scenario' });
 
   let code = E.generateCode();
-  while (await prisma.gameSession.findUnique({ where: { code } })) code = E.generateCode();
+  while (await prisma.gameSession.findUnique({ where: { code } })) {
+    code = E.generateCode();
+  }
 
   const state = E.createInitialState(code, sc.id, !!isDemo);
-  state.scenarioData = sc;
+  // Клонируем сценарий, чтобы host:inject-clue не мутировал общий SCENARIOS
+  state.scenarioData = JSON.parse(JSON.stringify(sc));
   const session = await prisma.gameSession.create({
-    data: { code, hostId: auth.uid, scenario: sc.id, state: state as any, status: 'lobby' }
+    data: {
+      code,
+      hostId: auth.uid,
+      scenario: sc.id,
+      state: state as any,
+      status: 'lobby'
+    }
   });
   setSession(code, state);
 
   await log({
-    sessionId: session.id, code, event: 'session:create', actor: auth.uid,
+    sessionId: session.id,
+    code,
+    event: 'session:create',
+    actor: auth.uid,
     payload: {
-      scenarioId: sc.id, scenarioTitle: sc.title,
+      scenarioId: sc.id,
+      scenarioTitle: sc.title,
       suspectsCount: sc.suspects.length,
       cluesCount: sc.clues.length,
       totalRounds: state.totalRounds,

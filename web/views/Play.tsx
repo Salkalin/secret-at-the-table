@@ -3,18 +3,9 @@ import { useParams } from 'react-router-dom';
 import { getSocket } from '../socket';
 import { api } from '../api';
 
-
 // ============================================================
 // УТИЛИТЫ
 // ============================================================
-
-const initials = (n: string) =>
-  n
-    .split(' ')
-    .map(w => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
 
 const fmt = (s: number) => {
   s = Math.max(0, s);
@@ -22,7 +13,7 @@ const fmt = (s: number) => {
 };
 
 // ============================================================
-// RAIN CANVAS
+// RAIN CANVAS (как было)
 // ============================================================
 
 function RainCanvas({ opacity = 0.5, lightning = false }: { opacity?: number; lightning?: boolean }) {
@@ -138,9 +129,7 @@ function RainCanvas({ opacity = 0.5, lightning = false }: { opacity?: number; li
         cx.lineCap = 'round';
         cx.lineJoin = 'round';
         for (const offset of offsets) {
-          cx.strokeStyle = `rgba(220, 235, 255, ${
-            boltOpacity * (offset === 0 ? 1 : 0.45)
-          })`;
+          cx.strokeStyle = `rgba(220, 235, 255, ${boltOpacity * (offset === 0 ? 1 : 0.45)})`;
           cx.lineWidth = offset === 0 ? 1.6 : 1;
           cx.beginPath();
           cx.moveTo(boltPoints[0].x1 + offset, boltPoints[0].y1);
@@ -168,6 +157,296 @@ function RainCanvas({ opacity = 0.5, lightning = false }: { opacity?: number; li
       style={{ zIndex: 0, opacity }}
       aria-hidden="true"
     />
+  );
+}
+
+// ============================================================
+// CUSTOM: карточка игрока
+// ============================================================
+
+type CustomCard = {
+  role: string;
+  hook: string;
+  motive: string;
+  alibi: string;
+  location: string;
+  partner: string;
+};
+
+const LOCATIONS = ['Кухня', 'Бар', 'Зал', 'Улица', 'Туалет', 'Подсобка', 'VIP-зона'];
+
+function CustomBuildScreen({
+  state,
+  code,
+  sock,
+  myTeam,
+  nickname
+}: {
+  state: any;
+  code: string;
+  sock: any;
+  myTeam: any;
+  nickname: string;
+}) {
+  const [card, setCard] = useState<CustomCard>({
+    role: '',
+    hook: '',
+    motive: '',
+    alibi: '',
+    location: '',
+    partner: 'Один'
+  });
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState('');
+
+  const teammates: any[] = (myTeam?.players || []).filter(
+    (p: any) => p.nickname !== nickname
+  );
+  const partnerOptions = ['Один', ...teammates.map((p: any) => p.nickname)];
+
+  const isValid =
+    card.role.trim().length > 0 &&
+    card.hook.trim().length > 0 &&
+    card.motive.trim().length > 0 &&
+    card.alibi.trim().length > 0 &&
+    card.location.length > 0;
+
+  function submit() {
+    if (!isValid) {
+      setErr('Заполните все поля');
+      return;
+    }
+    setErr('');
+    sock.emit('custom:submit-card', { code, card }, (res: any) => {
+      if (res?.error) {
+        setErr(res.error);
+        return;
+      }
+      setSent(true);
+    });
+  }
+
+  return (
+    <div className="relative min-h-screen flex justify-center bg-[#100e0c] text-[#d8d2c8] overflow-hidden">
+      <RainCanvas opacity={0.35} lightning />
+      <main className="relative z-[2] w-full max-w-[480px] px-5 py-6">
+        <div className="flex justify-between items-center mb-6 text-[12px] text-[#8c7f74]">
+          <span>Ваша карточка</span>
+          <span>{myTeam?.name || ''}</span>
+        </div>
+
+        <h2 className="font-['Cormorant_Garamond'] text-[32px] font-semibold text-[#f1e9df] mb-2">
+          Кто вы в этом деле?
+        </h2>
+        <p className="text-[13.5px] text-[#a79f93] mb-6">
+          Ведущий уже задал обстоятельства. Теперь расскажите о себе — эти данные увидят все.
+        </p>
+
+        {sent ? (
+          <div className="text-center py-12">
+            <i className="fa-solid fa-circle-check text-[48px] text-[#3fb39c] mb-4" />
+            <div className="font-['Cormorant_Garamond'] text-[26px] text-[#f1e9df] mb-2">
+              Карточка отправлена
+            </div>
+            <p className="text-[14px] text-[#a79f93]">Ждём остальных игроков…</p>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-[#8d837b] mb-1.5">
+                  Роль
+                </label>
+                <input
+                  value={card.role}
+                  onChange={e => setCard({ ...card, role: e.target.value.slice(0, 40) })}
+                  placeholder="Су-шеф"
+                  maxLength={40}
+                  className="w-full h-[52px] bg-black/30 border border-[#2a2421] rounded-[10px] px-4 text-[#e9e2da] text-[15px] outline-none focus:border-[#5a3a30]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-[#8d837b] mb-1.5">
+                  Характеристика
+                </label>
+                <input
+                  value={card.hook}
+                  onChange={e => setCard({ ...card, hook: e.target.value.slice(0, 90) })}
+                  placeholder="Ждала место шефа три года"
+                  maxLength={90}
+                  className="w-full h-[52px] bg-black/30 border border-[#2a2421] rounded-[10px] px-4 text-[#e9e2da] text-[15px] outline-none focus:border-[#5a3a30]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-[#8d837b] mb-1.5">
+                  Мотив
+                </label>
+                <textarea
+                  value={card.motive}
+                  onChange={e => setCard({ ...card, motive: e.target.value.slice(0, 140) })}
+                  placeholder="Карьера: Антон отдал её проект другому"
+                  maxLength={140}
+                  rows={2}
+                  className="w-full bg-black/30 border border-[#2a2421] rounded-[10px] px-4 py-3 text-[#e9e2da] text-[15px] outline-none focus:border-[#5a3a30] resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-[#8d837b] mb-1.5">
+                  Алиби
+                </label>
+                <textarea
+                  value={card.alibi}
+                  onChange={e => setCard({ ...card, alibi: e.target.value.slice(0, 140) })}
+                  placeholder="Работала в зале, гости подтверждают"
+                  maxLength={140}
+                  rows={2}
+                  className="w-full bg-black/30 border border-[#2a2421] rounded-[10px] px-4 py-3 text-[#e9e2da] text-[15px] outline-none focus:border-[#5a3a30] resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-[#8d837b] mb-1.5">
+                  Где вы были в {state.customSetup?.time || '23:00'}?
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {LOCATIONS.map(l => (
+                    <button
+                      key={l}
+                      onClick={() => setCard({ ...card, location: l })}
+                      className={
+                        'px-3 py-2 rounded-lg border text-[13px] transition ' +
+                        (card.location === l
+                          ? 'border-[#9b3f2c] bg-[#9b3f2c14] text-[#f1e9df]'
+                          : 'border-[#2a2421] text-[#a79f93] hover:border-[#4a3e38]')
+                      }
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-[#8d837b] mb-1.5">
+                  С кем вы были?
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {partnerOptions.map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setCard({ ...card, partner: p })}
+                      className={
+                        'px-3 py-2 rounded-lg border text-[13px] transition ' +
+                        (card.partner === p
+                          ? 'border-[#9b3f2c] bg-[#9b3f2c14] text-[#f1e9df]'
+                          : 'border-[#2a2421] text-[#a79f93] hover:border-[#4a3e38]')
+                      }
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {err && <div className="text-[12px] text-[#c96a52] mt-3">{err}</div>}
+
+            <button
+              onClick={submit}
+              disabled={!isValid}
+              className="w-full mt-6 h-[54px] rounded-[10px] bg-[#9b3f2c] text-[#f6ece4] text-[15px] font-semibold disabled:bg-[#3a2621] disabled:text-[#7d6760] disabled:cursor-not-allowed transition"
+            >
+              Отправить карточку
+              <i className="fa-solid fa-paper-plane ml-2" />
+            </button>
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function CustomRevealScreen({
+  state,
+  myTeam,
+  nickname
+}: {
+  state: any;
+  myTeam: any;
+  nickname: string;
+}) {
+  // myKillerId приходит в фазе reveal (см. publicState)
+  const killerId = state.myKillerId;
+  // Ищем свою карточку по нику (customCards на клиенте нет, но ник есть)
+  const myCard = (state.scenario?.suspects || []).find(
+    (s: any) => s.name === nickname
+  );
+  const isKiller = !!(killerId && myCard && myCard.id === killerId);
+  // Если свою карточку не нашли (ник не совпал) — считаем невиновным
+  const known = !!myCard;
+
+  return (
+    <div className="relative min-h-screen flex justify-center bg-[#0e0d0c] text-[#e8e2d6] overflow-hidden">
+      <RainCanvas opacity={0.4} lightning />
+      <main className="relative z-[2] flex flex-col justify-center w-full max-w-[480px] px-7 py-10 text-center">
+        <i className="fa-solid fa-user-secret text-[28px] text-[#b9a898] mb-7 opacity-85" />
+        <div className="text-[12px] tracking-[.4em] uppercase text-[#8c7f74] mb-7">
+          Ваша роль
+        </div>
+
+        {!known ? (
+          <>
+            <h1 className="font-['Cormorant_Garamond'] font-semibold text-[34px] leading-tight text-[#f1e9df] mb-5">
+              Один из вас — убийца
+            </h1>
+            <p className="font-['Cormorant_Garamond'] italic text-[17px] text-[#9c8f84] mb-4">
+              Смотрите на большой экран. Когда ведущий начнёт игру, вы узнаете свою роль.
+            </p>
+          </>
+        ) : isKiller ? (
+          <>
+            <div className="inline-block px-3 py-1 rounded border border-[#b3261e] text-[#ff8a80] text-[10px] tracking-[.2em] uppercase mb-5">
+              Секретно
+            </div>
+            <h1 className="font-['Cormorant_Garamond'] font-semibold text-[44px] leading-[1.05] text-[#f1e9df] mb-3">
+              Вы — <em className="text-[#e0603a] italic">убийца</em>
+            </h1>
+            <p className="font-['Cormorant_Garamond'] italic text-[18px] text-[#a79f93] leading-snug max-w-[340px] mx-auto mb-8">
+              Запутайте следствие. Отведите подозрения. Никто не должен узнать.
+            </p>
+            <div className="w-12 h-px bg-[#b3261e] mx-auto mb-6" />
+            <p className="text-[13px] text-[#7d766b]">
+              Никому не показывайте этот экран.
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="inline-block px-3 py-1 rounded border border-[#3fb39c] text-[#3fb39c] text-[10px] tracking-[.2em] uppercase mb-5">
+              Мирный
+            </div>
+            <h1 className="font-['Cormorant_Garamond'] font-semibold text-[44px] leading-[1.05] text-[#f1e9df] mb-3">
+              Вы <em className="text-[#3fb39c] italic">невиновны</em>
+            </h1>
+            <p className="font-['Cormorant_Garamond'] italic text-[18px] text-[#a79f93] leading-snug max-w-[340px] mx-auto mb-8">
+              Найдите убийцу. Слушайте. Сравнивайте. Не верьте никому.
+            </p>
+            <div className="w-12 h-px bg-[#3fb39c] mx-auto mb-6" />
+            <p className="text-[13px] text-[#7d766b]">
+              Ваша задача — вычислить, кто лжёт.
+            </p>
+          </>
+        )}
+
+        <div className="flex justify-center gap-2 mt-10">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#b0584a] animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-[#b0584a] animate-pulse" style={{ animationDelay: '.25s' }} />
+          <span className="w-1.5 h-1.5 rounded-full bg-[#b0584a] animate-pulse" style={{ animationDelay: '.5s' }} />
+        </div>
+      </main>
+    </div>
   );
 }
 
@@ -207,8 +486,6 @@ export default function Play() {
       sock.current.emit('client:trace', { code, event, data });
     } catch {}
   };
-
-
 
   useEffect(() => {
     const s = sock.current;
@@ -259,12 +536,7 @@ export default function Play() {
     const t = setTimeout(() => {
       sock.current.emit(
         'player:join',
-        {
-          code,
-          nickname: savedName,
-          wantCaptain: false,
-          reconnectTeamId: savedTeam
-        },
+        { code, nickname: savedName, wantCaptain: false, reconnectTeamId: savedTeam },
         (res: any) => {
           if (res?.error) {
             trace('auto_reconnect_failed', { error: res.error });
@@ -291,12 +563,15 @@ export default function Play() {
       return;
     }
 
-    // Участник — если ещё не выбрал стол, открываем picker
     if (!wantCaptain && !state && !isDemoSession) {
-      // эмитим player:join с wantCaptain:false и targetTeamId:undefined — сервер вернёт state с teams
       sock.current.emit(
         'player:join',
-        { code, nickname: v, wantCaptain: false, reconnectTeamId: localStorage.getItem(`team_${code}`) || undefined },
+        {
+          code,
+          nickname: v,
+          wantCaptain: false,
+          reconnectTeamId: localStorage.getItem(`team_${code}`) || undefined
+        },
         (res: any) => {
           if (res?.error) {
             setErr(
@@ -309,7 +584,6 @@ export default function Play() {
             return;
           }
           if (res?.teamId) {
-            // попали в первую команду — не то, что хотим; предложим выбор
             setTeamList(res.state?.teams || []);
             setShowTeamPicker(true);
             setState(res.state);
@@ -371,7 +645,7 @@ export default function Play() {
     });
   }
 
-    if (showTeamPicker) {
+  if (showTeamPicker) {
     const pick = (targetTeamId: string) => {
       const v = nickname.trim();
       sock.current.emit(
@@ -423,9 +697,7 @@ export default function Play() {
 
   if (!state) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-muted">
-        Ожидание…
-      </div>
+      <div className="min-h-screen flex items-center justify-center text-muted">Ожидание…</div>
     );
   }
 
@@ -445,19 +717,29 @@ export default function Play() {
 
   const myTeam = teams.find((t: any) => t.id === teamId);
   const eliminated: string[] = eliminatedSuspects || [];
-  const aliveSuspects = scenario.suspects.filter(
-    (s: any) => !eliminated.includes(s.id)
-  );
+  const aliveSuspects = scenario.suspects.filter((s: any) => !eliminated.includes(s.id));
+
+  // ===== CUSTOM: сбор карточек =====
+  if (state.isCustom && phase === 'build') {
+    return (
+      <CustomBuildScreen
+        state={state}
+        code={code!}
+        sock={sock.current}
+        myTeam={myTeam}
+        nickname={nickname}
+      />
+    );
+  }
+
+  // ===== CUSTOM: показ ролей =====
+  if (state.isCustom && phase === 'reveal') {
+    return <CustomRevealScreen state={state} myTeam={myTeam} nickname={nickname} />;
+  }
 
   if (phase === 'lobby') {
     return (
-      <LobbyScreen
-        scenario={scenario}
-        round={round}
-        isCaptain={isCaptain}
-        code={code}
-        myTeam={myTeam}
-      />
+      <LobbyScreen scenario={scenario} round={round} isCaptain={isCaptain} code={code} myTeam={myTeam} />
     );
   }
   if (phase === 'intro') {
@@ -503,7 +785,7 @@ export default function Play() {
         myTeam={myTeam}
         teams={teams}
         isCaptain={isCaptain}
-        roundScores={myTeam?.roundScores || [0, 0, 0, 0]}
+        roundScores={myTeam?.roundScores || []}
       />
     );
   }
@@ -521,10 +803,7 @@ function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, 
 
   function copy() {
     const t = String(code || '').toUpperCase();
-    (navigator.clipboard
-      ? navigator.clipboard.writeText(t)
-      : Promise.reject()
-    )
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject())
       .catch(() => {
         const ta = document.createElement('textarea');
         ta.value = t;
@@ -543,7 +822,7 @@ function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, 
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (isDemo) setWantCaptain(true);  // ← для демо всегда капитан
+    if (isDemo) setWantCaptain(true);
     setBusy(true);
     onJoin();
     setTimeout(() => setBusy(false), 1200);
@@ -556,8 +835,7 @@ function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, 
       <div
         className="fixed top-[-20vh] left-1/2 -translate-x-1/2 w-[140vw] h-[80vh] pointer-events-none"
         style={{
-          background:
-            'radial-gradient(ellipse at center, rgba(170,110,60,.13), transparent 60%)',
+          background: 'radial-gradient(ellipse at center, rgba(170,110,60,.13), transparent 60%)',
           animation: 'flicker 7s infinite'
         }}
       />
@@ -574,19 +852,14 @@ function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, 
       <main className="relative z-[4] min-h-screen w-full max-w-[440px] flex flex-col justify-center px-5 py-8">
         <div className="text-center mb-7">
           <i className="fa-solid fa-user-secret text-[22px] text-[#a8998c] mb-3 block" />
-          <span className="text-[11px] tracking-[.35em] uppercase text-[#8d837b]">
-            Дело открыто
-          </span>
+          <span className="text-[11px] tracking-[.35em] uppercase text-[#8d837b]">Дело открыто</span>
         </div>
 
         <form
           onSubmit={submit}
           autoComplete="off"
           className="relative rounded-2xl border border-[#2a2421] p-7 pb-6"
-          style={{
-            background:
-              'linear-gradient(180deg, rgba(26,22,20,.92), rgba(18,15,14,.94))'
-          }}
+          style={{ background: 'linear-gradient(180deg, rgba(26,22,20,.92), rgba(18,15,14,.94))' }}
         >
           <div className="absolute top-[18px] right-4 rotate-[12deg] border-[1.5px] border-[#9b3f2c8c] text-[#b24a33bf] text-[9px] font-semibold tracking-[.2em] uppercase px-2 py-1 rounded-[3px]">
             Секретно
@@ -632,65 +905,59 @@ function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, 
           </div>
 
           {err && <div className="text-[12px] text-[#c96a52] mb-3">{err}</div>}
-      {!isDemo && (
-          <div className="grid grid-cols-2 gap-2.5 mb-6">
-            <button
-              type="button"
-              onClick={() => setWantCaptain(true)}
-              className={
-                'text-left p-3.5 rounded-[10px] border transition ' +
-                (wantCaptain
-                  ? 'border-[#9b3f2c] bg-[#9b3f2c14]'
-                  : 'border-[#2a2421] bg-black/20 hover:border-[#4a3e38]')
-              }
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <i
-                  className={`fa-solid fa-user-tie text-[13px] ${
-                    wantCaptain ? 'text-[#d0664d]' : 'text-[#8d837b]'
-                  }`}
-                />
-                <b className="text-[14px] text-[#e9e2da]">Я капитан</b>
-              </div>
-              <div className="text-[11.5px] text-[#8d837b] leading-snug">
-                Создам новый стол
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setWantCaptain(false)}
-              className={
-                'text-left p-3.5 rounded-[10px] border transition ' +
-                (!wantCaptain
-                  ? 'border-[#9b3f2c] bg-[#9b3f2c14]'
-                  : 'border-[#2a2421] bg-black/20 hover:border-[#4a3e38]')
-              }
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <i
-                  className={`fa-solid fa-user-secret text-[13px] ${
-                    !wantCaptain ? 'text-[#d0664d]' : 'text-[#8d837b]'
-                  }`}
-                />
-                <b className="text-[14px] text-[#e9e2da]">Я участник</b>
-              </div>
-              <div className="text-[11.5px] text-[#8d837b] leading-snug">
-                Выберу стол
-              </div>
-            </button>
-          </div>
+
+          {!isDemo && (
+            <div className="grid grid-cols-2 gap-2.5 mb-6">
+              <button
+                type="button"
+                onClick={() => setWantCaptain(true)}
+                className={
+                  'text-left p-3.5 rounded-[10px] border transition ' +
+                  (wantCaptain
+                    ? 'border-[#9b3f2c] bg-[#9b3f2c14]'
+                    : 'border-[#2a2421] bg-black/20 hover:border-[#4a3e38]')
+                }
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <i
+                    className={`fa-solid fa-user-tie text-[13px] ${
+                      wantCaptain ? 'text-[#d0664d]' : 'text-[#8d837b]'
+                    }`}
+                  />
+                  <b className="text-[14px] text-[#e9e2da]">Я капитан</b>
+                </div>
+                <div className="text-[11.5px] text-[#8d837b] leading-snug">Создам новый стол</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setWantCaptain(false)}
+                className={
+                  'text-left p-3.5 rounded-[10px] border transition ' +
+                  (!wantCaptain
+                    ? 'border-[#9b3f2c] bg-[#9b3f2c14]'
+                    : 'border-[#2a2421] bg-black/20 hover:border-[#4a3e38]')
+                }
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <i
+                    className={`fa-solid fa-user-secret text-[13px] ${
+                      !wantCaptain ? 'text-[#d0664d]' : 'text-[#8d837b]'
+                    }`}
+                  />
+                  <b className="text-[14px] text-[#e9e2da]">Я участник</b>
+                </div>
+                <div className="text-[11.5px] text-[#8d837b] leading-snug">Выберу стол</div>
+              </button>
+            </div>
           )}
+
           <button
             type="submit"
             disabled={nickname.trim().length < 2 || busy}
             className="w-full h-[54px] rounded-[10px] bg-[#9b3f2c] text-[#f6ece4] text-[15px] font-semibold tracking-[.06em] flex items-center justify-center gap-2.5 hover:bg-[#b24a33] active:scale-[.98] disabled:bg-[#3a2621] disabled:text-[#7d6760] disabled:cursor-not-allowed transition"
           >
-            <span>{busy ? 'Подключаемся…' : (isDemo || wantCaptain) ? 'Создать стол' : 'Войти'}</span>
-            <i
-              className={`fa-solid ${
-                busy ? 'fa-circle-notch animate-spin' : 'fa-arrow-right'
-              } text-sm`}
-            />
+            <span>{busy ? 'Подключаемся…' : isDemo || wantCaptain ? 'Создать стол' : 'Войти'}</span>
+            <i className={`fa-solid ${busy ? 'fa-circle-notch animate-spin' : 'fa-arrow-right'} text-sm`} />
           </button>
         </form>
 
@@ -707,15 +974,13 @@ function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, 
 // ЭКРАН 2: ЛОББИ
 // ============================================================
 
-function LobbyScreen({ scenario, round, isCaptain }: any) {
-    const sock = getSocket();
+function LobbyScreen({ scenario, round, isCaptain, code, myTeam }: any) {
+  const sock = getSocket();
   const [showTransfer, setShowTransfer] = useState(false);
   const [pickId, setPickId] = useState<string | null>(null);
-  const myTeam = (window as any).__myTeam as any;
 
   function transfer() {
     if (!pickId) return;
-    const code = (window as any).__code;
     sock.emit('team:set-captain', { code, newCaptainSocketId: pickId }, (res: any) => {
       if (res?.error) {
         alert(res.error);
@@ -725,6 +990,7 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
       setPickId(null);
     });
   }
+
   return (
     <div className="relative min-h-screen flex justify-center bg-[#100e0c] text-[#d8d2c8] overflow-hidden">
       <svg
@@ -867,7 +1133,7 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
               ? 'Вы капитан команды. Дождитесь начала.'
               : 'Вы присоединились как зритель. Решение принимает капитан.'}
           </p>
-                    {isCaptain && myTeam && (
+          {isCaptain && myTeam && (
             <button
               onClick={() => setShowTransfer(true)}
               className="mt-4 px-4 py-2 rounded-lg border border-[#3a342a] text-[12px] text-[#a79d8b] hover:text-[#e9e2da] hover:border-[#4a3e38] transition"
@@ -891,7 +1157,7 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
       {showTransfer && myTeam && (
         <div
           className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-          onClick={(e) => {
+          onClick={e => {
             if (e.target === e.currentTarget) {
               setShowTransfer(false);
               setPickId(null);
@@ -902,9 +1168,7 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
             <h3 className="font-['Cormorant_Garamond'] text-[24px] text-[#f1e9df] mb-1.5">
               Передать капитанство
             </h3>
-            <p className="text-[13px] text-[#8d837b] mb-5">
-              Выберите, кто будет голосовать за вашу команду.
-            </p>
+            <p className="text-[13px] text-[#8d837b] mb-5">Выберите, кто будет голосовать за вашу команду.</p>
             <div className="space-y-2 mb-5 max-h-[300px] overflow-y-auto">
               {(myTeam.players || [])
                 .filter((p: any) => p.socketId !== myTeam.captainId)
@@ -925,12 +1189,8 @@ function LobbyScreen({ scenario, round, isCaptain }: any) {
                     <span className="text-[14px] text-[#f1e9df]">{p.nickname}</span>
                   </button>
                 ))}
-              {(myTeam.players || []).filter(
-                (p: any) => p.socketId !== myTeam.captainId
-              ).length === 0 && (
-                <div className="text-[13px] text-[#8d837b] py-4 text-center">
-                  В команде больше никого нет
-                </div>
+              {(myTeam.players || []).filter((p: any) => p.socketId !== myTeam.captainId).length === 0 && (
+                <div className="text-[13px] text-[#8d837b] py-4 text-center">В команде больше никого нет</div>
               )}
             </div>
             <div className="flex gap-2 justify-end">
@@ -968,9 +1228,7 @@ function IntroScreen({ scenario, isCaptain }: any) {
       <RainCanvas opacity={0.4} lightning />
       <main className="relative z-[2] flex flex-col justify-center w-full max-w-[480px] px-7 py-10 text-center">
         <i className="fa-solid fa-user-secret text-[28px] text-[#b9a898] mb-7 opacity-85" />
-        <div className="text-[12px] tracking-[.4em] uppercase text-[#8c7f74] mb-7">
-          Дело открыто
-        </div>
+        <div className="text-[12px] tracking-[.4em] uppercase text-[#8c7f74] mb-7">Дело открыто</div>
         <h1 className="font-['Cormorant_Garamond'] font-semibold text-[clamp(34px,6vw,60px)] leading-tight text-[#f1e9df] mb-5">
           {scenario.title}
         </h1>
@@ -1041,9 +1299,7 @@ function StoryScreen({ scenario, round }: any) {
 
 function DiscussionScreen({ scenario, round, isCaptain, eliminatedSuspects }: any) {
   const eliminated: string[] = eliminatedSuspects || [];
-  const aliveSuspects = scenario.suspects.filter(
-    (s: any) => !eliminated.includes(s.id)
-  );
+  const aliveSuspects = scenario.suspects.filter((s: any) => !eliminated.includes(s.id));
   return (
     <div className="relative min-h-screen flex justify-center bg-[#0d0c0b] text-[#e8e2d6] overflow-hidden">
       <RainCanvas opacity={0.35} lightning />
@@ -1053,19 +1309,14 @@ function DiscussionScreen({ scenario, round, isCaptain, eliminatedSuspects }: an
           <span>Раунд {round} / 4</span>
         </div>
 
-        <h2 className="font-['Cormorant_Garamond'] text-[32px] font-semibold text-[#f1e9df] mb-3">
-          Досье
-        </h2>
+        <h2 className="font-['Cormorant_Garamond'] text-[32px] font-semibold text-[#f1e9df] mb-3">Досье</h2>
         <p className="text-[14px] text-[#a79f93] leading-snug mb-6">
           Изучите подозреваемых. Голосование откроется на следующем этапе.
         </p>
 
         <div className="flex flex-col gap-3.5">
           {aliveSuspects.map((s: any, i: number) => (
-            <article
-              key={s.id}
-              className="relative border border-[#2c2821] bg-[#16140f] rounded p-5 pb-4"
-            >
+            <article key={s.id} className="relative border border-[#2c2821] bg-[#16140f] rounded p-5 pb-4">
               <div className="flex items-start gap-3.5">
                 <div className="flex-none w-[46px] h-[46px] rounded-full grid place-items-center border border-[#3a342a] bg-[#0f0e0c]">
                   <i className={`fa-solid ${s.icon} text-[17px] text-[#a79d8b]`} />
@@ -1170,8 +1421,7 @@ function VotingScreen({
       <div
         className="fixed top-[-10%] right-[-40%] w-[120%] h-[70%] pointer-events-none -rotate-[24deg]"
         style={{
-          background:
-            'repeating-linear-gradient(180deg, rgba(236,228,212,.035) 0 26px, transparent 26px 48px)',
+          background: 'repeating-linear-gradient(180deg, rgba(236,228,212,.035) 0 26px, transparent 26px 48px)',
           maskImage: 'radial-gradient(closest-side, #000, transparent)'
         }}
       />
@@ -1179,9 +1429,7 @@ function VotingScreen({
         <header className="sticky top-0 z-10 flex justify-between items-center py-4 bg-gradient-to-b from-[#0d0c0b] via-[#0d0c0b] to-transparent">
           <div className="flex items-center gap-2.5">
             <i className="fa-solid fa-utensils text-[#b3261e] text-sm" />
-            <span className="font-['Playfair_Display'] italic text-[17px]">
-              {scenario.title}
-            </span>
+            <span className="font-['Playfair_Display'] italic text-[17px]">{scenario.title}</span>
           </div>
           <div className="font-['IBM_Plex_Mono'] text-[11px] tracking-[.14em] uppercase text-[#a79d8b] border border-[#3a342a] px-2.5 py-1 rounded-sm">
             Раунд <b className="text-[#ece4d4] font-medium">{round}</b> / 4
@@ -1196,9 +1444,7 @@ function VotingScreen({
           <h1 className="font-['Playfair_Display'] font-bold text-[36px] leading-[1.05] tracking-[-.01em]">
             Голосование
             <br />
-            <em className="italic font-medium text-[#a79d8b]">
-              кто убил?
-            </em>
+            <em className="italic font-medium text-[#a79d8b]">кто убил?</em>
           </h1>
           <p className="mt-3.5 text-[#a79d8b] text-[14px] max-w-[34ch]">
             Изучите досье. У каждого был мотив — но только один солгал об алиби.
@@ -1218,57 +1464,39 @@ function VotingScreen({
               onClick={() => select(i)}
               className={
                 'relative border rounded cursor-pointer transition p-5 pb-4 ' +
-                (selected === i
-                  ? 'border-[#b3261e] bg-[#1c1914]'
-                  : 'border-[#2c2821] bg-[#16140f]')
+                (selected === i ? 'border-[#b3261e] bg-[#1c1914]' : 'border-[#2c2821] bg-[#16140f]')
               }
             >
-              {selected === i && (
-                <span className="absolute left-0 top-5 bottom-5 w-0.5 bg-[#b3261e]" />
-              )}
+              {selected === i && <span className="absolute left-0 top-5 bottom-5 w-0.5 bg-[#b3261e]" />}
               <div className="flex items-start gap-3.5">
                 <div
                   className={
                     'flex-none w-[46px] h-[46px] rounded-full grid place-items-center border transition ' +
-                    (selected === i
-                      ? 'border-[#b3261e]'
-                      : 'border-[#3a342a] bg-[#0f0e0c]')
+                    (selected === i ? 'border-[#b3261e]' : 'border-[#3a342a] bg-[#0f0e0c]')
                   }
                 >
                   <i
-                    className={`fa-solid ${s.icon} text-[17px] ${
-                      selected === i ? 'text-[#b3261e]' : 'text-[#a79d8b]'
-                    }`}
+                    className={`fa-solid ${s.icon} text-[17px] ${selected === i ? 'text-[#b3261e]' : 'text-[#a79d8b]'}`}
                   />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-['IBM_Plex_Mono'] text-[10px] tracking-[.16em] text-[#6f675a] uppercase">
                     Подозреваемый № 0{i + 1}
                   </div>
-                  <div className="font-['Playfair_Display'] text-[24px] font-bold leading-tight mt-0.5">
-                    {s.name}
-                  </div>
+                  <div className="font-['Playfair_Display'] text-[24px] font-bold leading-tight mt-0.5">{s.name}</div>
                   <div className="text-[13px] text-[#a79d8b] mt-0.5">{s.role}</div>
                 </div>
                 <div
                   className={
                     'flex-none w-6 h-6 rounded-full border grid place-items-center mt-1 transition ' +
-                    (selected === i
-                      ? 'bg-[#b3261e] border-[#b3261e]'
-                      : 'border-[#3a342a]')
+                    (selected === i ? 'bg-[#b3261e] border-[#b3261e]' : 'border-[#3a342a]')
                   }
                 >
-                  <i
-                    className={`fa-solid fa-check text-[11px] ${
-                      selected === i ? 'text-white' : 'text-transparent'
-                    }`}
-                  />
+                  <i className={`fa-solid fa-check text-[11px] ${selected === i ? 'text-white' : 'text-transparent'}`} />
                 </div>
               </div>
 
-              <p className="mt-4 font-['Playfair_Display'] italic text-[16px] leading-snug">
-                «{s.description}»
-              </p>
+              <p className="mt-4 font-['Playfair_Display'] italic text-[16px] leading-snug">«{s.description}»</p>
 
               <dl className="mt-3.5 pt-3 border-t border-dashed border-[#3a342a] grid gap-2.5">
                 <div className="grid grid-cols-[62px_1fr] gap-2.5 text-[13.5px]">
@@ -1303,7 +1531,7 @@ function VotingScreen({
         <div className="max-w-[440px] mx-auto">
           <div className="font-['IBM_Plex_Mono'] text-[11px] tracking-[.08em] text-center text-[#6f675a] mb-2.5 min-h-[17px] flex items-center justify-center gap-3">
             <span>{hint}</span>
-          {!voted && !isDemo && <VotingCountdown votingStartedAt={votingStartedAt} />}
+            {!voted && !isDemo && <VotingCountdown votingStartedAt={votingStartedAt} />}
           </div>
           <button
             onClick={submit}
@@ -1317,9 +1545,7 @@ function VotingScreen({
           >
             <i className="fa-solid fa-gavel text-sm" />
             <span>
-              {selected !== null && isCaptain
-                ? `Обвинить: ${aliveSuspects[selected].name}`
-                : 'Обвинить'}
+              {selected !== null && isCaptain ? `Обвинить: ${aliveSuspects[selected].name}` : 'Обвинить'}
             </span>
           </button>
         </div>
@@ -1332,14 +1558,7 @@ function VotingScreen({
 // ЭКРАН 7: ГОЛОС ПРИНЯТ
 // ============================================================
 
-function VoteAcceptedScreen({
-  scenario,
-  round,
-  votedCount,
-  totalTeams,
-  teams,
-  myTeam
-}: any) {
+function VoteAcceptedScreen({ scenario, round, votedCount, totalTeams, teams }: any) {
   const [waiting, setWaiting] = useState(true);
 
   useEffect(() => {
@@ -1362,12 +1581,15 @@ function VoteAcceptedScreen({
 
         <main className="flex-1 flex flex-col items-center justify-center text-center px-7 py-10">
           <div className="relative w-[92px] h-[92px] rounded-full border border-[#b5553f73] grid place-items-center mb-9">
-            <div className="absolute inset-2 rounded-full border border-dashed border-[#b5553f4d] animate-spin" style={{ animationDuration: '24s' }} />
-            <i className={`fa-solid ${waiting ? 'fa-envelope-circle-check' : 'fa-magnifying-glass'} text-[30px] text-[#b5553f]`} />
+            <div
+              className="absolute inset-2 rounded-full border border-dashed border-[#b5553f4d] animate-spin"
+              style={{ animationDuration: '24s' }}
+            />
+            <i
+              className={`fa-solid ${waiting ? 'fa-envelope-circle-check' : 'fa-magnifying-glass'} text-[30px] text-[#b5553f]`}
+            />
           </div>
-          <div className="text-[11px] tracking-[.32em] uppercase text-[#7d766b] mb-3.5">
-            Голосование
-          </div>
+          <div className="text-[11px] tracking-[.32em] uppercase text-[#7d766b] mb-3.5">Голосование</div>
           <h1 className="font-['Cormorant_Garamond'] font-medium text-[44px] leading-[1.05] text-[#f1ebdf] mb-4">
             Ваш голос
             <br />
@@ -1380,8 +1602,12 @@ function VoteAcceptedScreen({
                 Ожидание результата
                 <span className="inline-flex gap-0.5 ml-0.5">
                   <span className="animate-pulse">.</span>
-                  <span className="animate-pulse" style={{ animationDelay: '.2s' }}>.</span>
-                  <span className="animate-pulse" style={{ animationDelay: '.4s' }}>.</span>
+                  <span className="animate-pulse" style={{ animationDelay: '.2s' }}>
+                    .
+                  </span>
+                  <span className="animate-pulse" style={{ animationDelay: '.4s' }}>
+                    .
+                  </span>
                 </span>
               </>
             ) : (
@@ -1403,20 +1629,16 @@ function VoteAcceptedScreen({
               />
             </div>
             <div className="flex justify-center gap-2.5 mt-5">
-              {teams.map((t: any, i: number) => (
+              {teams.map((t: any) => (
                 <div
                   key={t.id}
                   className={
                     'w-[34px] h-[34px] rounded-full border flex items-center justify-center transition ' +
-                    (t.vote
-                      ? 'border-[#b5553f99] bg-[#b5553f14]'
-                      : 'border-white/[.12]')
+                    (t.vote ? 'border-[#b5553f99] bg-[#b5553f14]' : 'border-white/[.12]')
                   }
                 >
                   <i
-                    className={`fa-solid fa-user-secret text-[13px] ${
-                      t.vote ? 'text-[#c7654d]' : 'text-[#4d4842]'
-                    }`}
+                    className={`fa-solid fa-user-secret text-[13px] ${t.vote ? 'text-[#c7654d]' : 'text-[#4d4842]'}`}
                   />
                 </div>
               ))}
@@ -1435,7 +1657,7 @@ function VoteAcceptedScreen({
 }
 
 // ============================================================
-// ЭКРАН 8: RESULTS (заглушка на клиенте)
+// ЭКРАН 8: RESULTS
 // ============================================================
 
 function ResultsScreen({ scenario, round }: any) {
@@ -1477,7 +1699,8 @@ function EndScreen({ scenario, myTeam, teams, isCaptain, roundScores }: any) {
   const sorted = [...safeTeams].sort((a: any, b: any) => (b.score || 0) - (a.score || 0));
   const myPlace = myId ? sorted.findIndex((t: any) => t.id === myId) + 1 : 0;
   const totalTeams = sorted.length;
-  const rs = Array.isArray(roundScores) && roundScores.length ? roundScores : [0, 0, 0, 0];
+  const rs = Array.isArray(roundScores) && roundScores.length ? roundScores : [];
+
   const fmtScore = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
   return (
@@ -1485,10 +1708,8 @@ function EndScreen({ scenario, myTeam, teams, isCaptain, roundScores }: any) {
       <div
         className="absolute inset-[-20%] pointer-events-none"
         style={{
-          background:
-            'repeating-linear-gradient(115deg, rgba(255,244,220,.035) 0 22px, transparent 22px 54px)',
-          maskImage:
-            'radial-gradient(ellipse 60% 45% at 65% 35%, #000 0%, transparent 75%)'
+          background: 'repeating-linear-gradient(115deg, rgba(255,244,220,.035) 0 22px, transparent 22px 54px)',
+          maskImage: 'radial-gradient(ellipse 60% 45% at 65% 35%, #000 0%, transparent 75%)'
         }}
       />
       <div className="relative z-[2] w-full max-w-[480px] min-h-screen flex flex-col">
@@ -1508,9 +1729,7 @@ function EndScreen({ scenario, myTeam, teams, isCaptain, roundScores }: any) {
             />
             <i className="fa-solid fa-star text-[30px] text-[#b5553f]" />
           </div>
-          <div className="text-[11px] tracking-[.32em] uppercase text-[#7d766b] mb-3.5">
-            Дело закрыто
-          </div>
+          <div className="text-[11px] tracking-[.32em] uppercase text-[#7d766b] mb-3.5">Дело закрыто</div>
           <h1 className="font-['Cormorant_Garamond'] font-medium text-[40px] leading-[1.05] text-[#f1ebdf] mb-5">
             Вы были сегодня
             <br />
@@ -1518,17 +1737,13 @@ function EndScreen({ scenario, myTeam, teams, isCaptain, roundScores }: any) {
           </h1>
           <div className="w-12 h-px bg-[#b5553f] mb-6" />
           <p className="font-['Cormorant_Garamond'] italic text-[18px] text-[#a79f93] leading-snug max-w-[340px] mb-8">
-            «Каждая история заканчивается. Но у хорошего детектива всегда есть следующее
-            дело.»
+            «Каждая история заканчивается. Но у хорошего детектива всегда есть следующее дело.»
           </p>
 
-          {/* ===== Блок «Ваша команда» ===== */}
           {myTeam ? (
             <div className="w-full max-w-[380px] rounded-2xl border border-[#b5553f55] bg-[#16140f] p-6 text-left">
               <div className="flex items-center justify-between mb-4">
-                <div className="text-[10.5px] tracking-[.2em] uppercase text-[#b5553f] font-bold">
-                  Ваша команда
-                </div>
+                <div className="text-[10.5px] tracking-[.2em] uppercase text-[#b5553f] font-bold">Ваша команда</div>
                 {isCaptain && (
                   <span className="text-[10px] tracking-wider uppercase text-[#a79d8b] border border-[#3a342a] rounded px-1.5 py-0.5">
                     капитан
@@ -1542,18 +1757,14 @@ function EndScreen({ scenario, myTeam, teams, isCaptain, roundScores }: any) {
 
               <div className="grid grid-cols-2 gap-3 mt-5">
                 <div className="rounded-lg border border-[#2c2821] bg-[#0f0e0c] p-3">
-                  <div className="text-[10px] tracking-[.16em] uppercase text-[#6f675a] mb-1">
-                    Место
-                  </div>
+                  <div className="text-[10px] tracking-[.16em] uppercase text-[#6f675a] mb-1">Место</div>
                   <div className="font-['Cormorant_Garamond'] text-[28px] leading-none text-[#ece4d4]">
                     {myPlace > 0 ? `${myPlace}` : '—'}
                     <span className="text-[14px] text-[#6f675a] ml-1">/ {totalTeams}</span>
                   </div>
                 </div>
                 <div className="rounded-lg border border-[#2c2821] bg-[#0f0e0c] p-3">
-                  <div className="text-[10px] tracking-[.16em] uppercase text-[#6f675a] mb-1">
-                    Очки
-                  </div>
+                  <div className="text-[10px] tracking-[.16em] uppercase text-[#6f675a] mb-1">Очки</div>
                   <div
                     className={
                       'font-[\'Cormorant_Garamond\'] text-[28px] leading-none ' +
@@ -1566,26 +1777,18 @@ function EndScreen({ scenario, myTeam, teams, isCaptain, roundScores }: any) {
               </div>
 
               <div className="mt-4">
-                <div className="text-[10px] tracking-[.16em] uppercase text-[#6f675a] mb-2">
-                  По раундам
-                </div>
-                <div className="grid grid-cols-4 gap-1.5">
+                <div className="text-[10px] tracking-[.16em] uppercase text-[#6f675a] mb-2">По раундам</div>
+                <div
+                    className="grid gap-1.5"
+                    style={{ gridTemplateColumns: `repeat(${Math.max(1, rs.length)}, minmax(0, 1fr))` }}
+                  >
                   {rs.map((val: number, i: number) => (
-                    <div
-                      key={i}
-                      className="rounded-md border border-[#2c2821] bg-[#0f0e0c] py-2 text-center"
-                    >
-                      <div className="text-[9px] tracking-[.14em] uppercase text-[#6f675a] mb-0.5">
-                        Р{i + 1}
-                      </div>
+                    <div key={i} className="rounded-md border border-[#2c2821] bg-[#0f0e0c] py-2 text-center">
+                      <div className="text-[9px] tracking-[.14em] uppercase text-[#6f675a] mb-0.5">Р{i + 1}</div>
                       <div
                         className={
                           'font-[\'IBM_Plex_Mono\'] text-[13px] tabular-nums ' +
-                          (val < 0
-                            ? 'text-[#c96a52]'
-                            : val > 0
-                            ? 'text-green-400'
-                            : 'text-[#6f675a]')
+                          (val < 0 ? 'text-[#c96a52]' : val > 0 ? 'text-green-400' : 'text-[#6f675a]')
                         }
                       >
                         {val === 0 ? '—' : fmtScore(val)}
@@ -1606,18 +1809,11 @@ function EndScreen({ scenario, myTeam, teams, isCaptain, roundScores }: any) {
   );
 }
 
-function VotingCountdown({
-  votingStartedAt
-}: {
-  votingStartedAt?: number | null;
-}) {
+function VotingCountdown({ votingStartedAt }: { votingStartedAt?: number | null }) {
   const DURATION = 60;
   const [left, setLeft] = useState(() => {
     if (!votingStartedAt) return DURATION;
-    return Math.max(
-      0,
-      DURATION - Math.floor((Date.now() - votingStartedAt) / 1000)
-    );
+    return Math.max(0, DURATION - Math.floor((Date.now() - votingStartedAt) / 1000));
   });
 
   useEffect(() => {
@@ -1626,10 +1822,7 @@ function VotingCountdown({
       return;
     }
     const tick = () => {
-      const l = Math.max(
-        0,
-        DURATION - Math.floor((Date.now() - votingStartedAt) / 1000)
-      );
+      const l = Math.max(0, DURATION - Math.floor((Date.now() - votingStartedAt) / 1000));
       setLeft(l);
     };
     tick();
@@ -1645,17 +1838,10 @@ function VotingCountdown({
 }
 
 // ============================================================
-// TEAM PICKER (участник выбирает стол)
+// TEAM PICKER
 // ============================================================
 
-function TeamPickerScreen({
-  code,
-  teams,
-  nickname,
-  onPick,
-  onBack,
-  err
-}: any) {
+function TeamPickerScreen({ code, teams, nickname, onPick, onBack, err }: any) {
   return (
     <div className="relative min-h-screen flex justify-center bg-[#100e0c] text-[#d8d2c8] overflow-hidden">
       <RainCanvas opacity={0.4} lightning />
@@ -1667,9 +1853,7 @@ function TeamPickerScreen({
           <i className="fa-solid fa-arrow-left text-xs" />
           Назад
         </button>
-        <div className="text-[11px] tracking-[.32em] uppercase text-[#8d837b] mb-3">
-          Подключение
-        </div>
+        <div className="text-[11px] tracking-[.32em] uppercase text-[#8d837b] mb-3">Подключение</div>
         <h1 className="font-['Cormorant_Garamond'] font-semibold text-[36px] leading-tight text-[#f1e9df] mb-2">
           Выберите стол
         </h1>
@@ -1697,9 +1881,7 @@ function TeamPickerScreen({
                   {(t.captainName || t.name)[0]}
                 </span>
                 <div className="min-w-0">
-                  <div className="text-[15px] font-bold text-[#f1e9df] truncate">
-                    {t.name}
-                  </div>
+                  <div className="text-[15px] font-bold text-[#f1e9df] truncate">{t.name}</div>
                   <div className="text-[12px] text-[#8d837b] truncate">
                     Капитан: {t.captainName || '—'} · {(t.players || []).length} в команде
                   </div>

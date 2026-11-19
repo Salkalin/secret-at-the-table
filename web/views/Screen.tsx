@@ -48,6 +48,588 @@ const initials = (n: string) =>
     .slice(0, 2)
     .toUpperCase();
 
+// ============================================================
+// CUSTOM BUILDER
+// ============================================================
+
+type CustomSetup = {
+  type: string;
+  victim: string;
+  weapon: string;
+  place: string;
+  time: string;
+  details: string;
+};
+
+const PLACES = ['Кухня', 'Бар', 'Зал', 'Улица', 'Туалет', 'Подсобка', 'VIP-зона'];
+const CRIME_TYPES = ['Убийство', 'Отравление', 'Кража', 'Похищение', 'Поджог'];
+
+const DEFAULT_SETUP: CustomSetup = {
+  type: 'Убийство',
+  victim: '',
+  weapon: '',
+  place: 'Кухня',
+  time: '23:00',
+  details: ''
+};
+
+function CustomBuilderScreen({
+  state,
+  code,
+  sock,
+  advance,
+  busy
+}: {
+  state: any;
+  code: string;
+  sock: any;
+  advance: () => void;
+  busy: boolean;
+}) {
+  const isBuild = state.phase === 'build';
+
+  const [setup, setSetup] = useState<CustomSetup>(() => ({
+    ...DEFAULT_SETUP,
+    ...(state.customSetup || {})
+  }));
+  const [totalRounds, setTotalRounds] = useState<number>(state.totalRounds || 3);
+  const [roundMinutes, setRoundMinutes] = useState<number>(
+    Math.round((state.roundDurationSec || 600) / 60)
+  );
+
+  useEffect(() => {
+    if (state.customSetup) setSetup({ ...DEFAULT_SETUP, ...state.customSetup });
+  }, [JSON.stringify(state.customSetup)]);
+
+  useEffect(() => {
+    setTotalRounds(state.totalRounds || 3);
+    setRoundMinutes(Math.round((state.roundDurationSec || 600) / 60));
+  }, [state.totalRounds, state.roundDurationSec]);
+
+  const cardsCount = state.customCardsCount || 0;
+  const totalTeams = (state.teams || []).length;
+  const submittedIds: string[] = state.customSubmittedTeamIds || [];
+  const ready = !!setup.type && !!setup.victim && !!setup.place;
+
+  function saveSetup(patch: Partial<CustomSetup>) {
+    const next = { ...setup, ...patch };
+    setSetup(next);
+    sock.emit('custom:set-setup', { code, setup: next });
+  }
+
+  function saveConfig(patch: { totalRounds?: number; roundDurationSec?: number }) {
+    sock.emit('custom:set-config', { code, ...patch });
+  }
+
+  if (isBuild) {
+    return (
+      <div className="min-h-screen p-6 md:p-8 max-w-[900px] mx-auto">
+        <div className="text-center mb-8">
+          <div className="text-[11px] tracking-[0.25em] uppercase text-accent mb-2">
+            Конструктор · Сбор карточек
+          </div>
+          <h1 className="font-serif text-4xl text-text font-semibold m-0">
+            Игроки заполняют карточки
+          </h1>
+          <p className="text-muted text-[14px] mt-2">
+            Раунды: {state.totalRounds} · Время: {Math.round((state.roundDurationSec || 600) / 60)} мин
+          </p>
+        </div>
+
+        <div
+          className="rounded-[18px] border border-line p-6 mb-6"
+          style={{ background: 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))' }}
+        >
+          <div className="flex justify-between items-baseline mb-4">
+            <div className="text-[13px] uppercase tracking-wider text-muted">Прогресс</div>
+            <div className="font-serif text-2xl text-text">
+              <b className="text-accent">{cardsCount}</b> / {totalTeams}
+            </div>
+          </div>
+          <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-accent transition-all duration-500"
+              style={{ width: `${totalTeams > 0 ? (cardsCount / totalTeams) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="rounded-[18px] border border-line p-6 mb-6">
+          <div className="text-[13px] uppercase tracking-wider text-muted mb-3">Команды</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(state.teams || []).map((t: any) => {
+              const submitted = submittedIds.includes(t.id);
+              return (
+                <div
+                  key={t.id}
+                  className="flex items-center justify-between p-3 rounded-xl border border-line bg-white/[.02]"
+                >
+                  <div className="min-w-0">
+                    <div className="text-text font-semibold truncate">{t.name}</div>
+                    <div className="text-[12px] text-muted">
+                      Капитан: {t.captainName || '—'} · {(t.players || []).length} в команде
+                    </div>
+                  </div>
+                  <i
+                    className={`fa-solid ${
+                      submitted ? 'fa-circle-check text-accent' : 'fa-hourglass-half text-muted'
+                    } text-lg`}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex justify-center gap-3 flex-wrap">
+          <button
+            onClick={advance}
+            disabled={busy || cardsCount < 2}
+            className="px-8 py-4 rounded-xl bg-accent text-white font-bold text-[16px] disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {busy ? 'Запуск…' : `Начать игру (${cardsCount})`}
+            <i className="fa-solid fa-play ml-2.5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen p-6 md:p-8 max-w-[1100px] mx-auto">
+      <div className="text-center mb-8">
+        <div className="text-[11px] tracking-[0.25em] uppercase text-accent mb-2">
+          Конструктор · Настройка
+        </div>
+        <h1 className="font-serif text-4xl text-text font-semibold m-0">Создайте своё дело</h1>
+        <p className="text-muted text-[14px] mt-2">
+          Заполните обстоятельства, настройте раунды — затем игроки введут карточки со своих телефонов.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+        <div className="space-y-5">
+          <div
+            className="rounded-[18px] border border-line p-6"
+            style={{ background: 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))' }}
+          >
+            <h2 className="font-serif text-2xl text-text m-0 mb-4">
+              <i className="fa-solid fa-scroll text-accent mr-2" />
+              Обстоятельства дела
+            </h2>
+
+            <div className="mb-4">
+              <label className="block text-[12px] uppercase tracking-wider text-muted mb-2">
+                Тип преступления
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {CRIME_TYPES.map(v => (
+                  <button
+                    key={v}
+                    onClick={() => saveSetup({ type: v })}
+                    className={
+                      'px-3.5 py-2 rounded-lg border text-[13px] transition ' +
+                      (setup.type === v
+                        ? 'border-accent bg-accent/15 text-text'
+                        : 'border-line text-muted hover:border-accent/50')
+                    }
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-[12px] uppercase tracking-wider text-muted mb-2">Жертва</label>
+                <input
+                  value={setup.victim}
+                  onChange={e => saveSetup({ victim: e.target.value })}
+                  placeholder="Шеф-повар Антон"
+                  maxLength={60}
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-black/30 border border-line text-text text-[14px] outline-none focus:border-accent"
+                />
+              </div>
+              <div>
+                <label className="block text-[12px] uppercase tracking-wider text-muted mb-2">Орудие</label>
+                <input
+                  value={setup.weapon}
+                  onChange={e => saveSetup({ weapon: e.target.value })}
+                  placeholder="Тяжёлая сковорода"
+                  maxLength={60}
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-black/30 border border-line text-text text-[14px] outline-none focus:border-accent"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-[12px] uppercase tracking-wider text-muted mb-2">Место</label>
+                <div className="flex flex-wrap gap-2">
+                  {PLACES.map(v => (
+                    <button
+                      key={v}
+                      onClick={() => saveSetup({ place: v })}
+                      className={
+                        'px-3 py-1.5 rounded-lg border text-[12.5px] transition ' +
+                        (setup.place === v
+                          ? 'border-accent bg-accent/15 text-text'
+                          : 'border-line text-muted hover:border-accent/50')
+                      }
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-[12px] uppercase tracking-wider text-muted mb-2">Время</label>
+                <input
+                  value={setup.time}
+                  onChange={e => saveSetup({ time: e.target.value })}
+                  placeholder="23:00"
+                  maxLength={20}
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-black/30 border border-line text-text text-[14px] outline-none focus:border-accent"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[12px] uppercase tracking-wider text-muted mb-2">
+                Подробности (необязательно)
+              </label>
+              <textarea
+                value={setup.details}
+                onChange={e => saveSetup({ details: e.target.value })}
+                placeholder="Тело нашёл уборщик, дверь была заперта изнутри"
+                maxLength={200}
+                rows={2}
+                className="w-full px-3.5 py-2.5 rounded-lg bg-black/30 border border-line text-text text-[14px] outline-none focus:border-accent resize-none"
+              />
+            </div>
+          </div>
+
+          <div
+            className="rounded-[18px] border border-line p-6"
+            style={{ background: 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))' }}
+          >
+            <h2 className="font-serif text-2xl text-text m-0 mb-4">
+              <i className="fa-solid fa-sliders text-accent mr-2" />
+              Параметры игры
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-[12px] uppercase tracking-wider text-muted mb-2">
+                  Количество раундов
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => {
+                        setTotalRounds(n);
+                        saveConfig({ totalRounds: n });
+                      }}
+                      className={
+                        'flex-1 py-2 rounded-lg border text-[14px] font-semibold transition ' +
+                        (totalRounds === n
+                          ? 'border-accent bg-accent/15 text-text'
+                          : 'border-line text-muted hover:border-accent/50')
+                      }
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-[12px] uppercase tracking-wider text-muted mb-2">
+                  Время раунда (мин)
+                </label>
+                <div className="flex gap-2">
+                  {[1, 3, 5, 7, 10].map(m => (
+                    <button
+                      key={m}
+                      onClick={() => {
+                        setRoundMinutes(m);
+                        saveConfig({ roundDurationSec: m * 60 });
+                      }}
+                      className={
+                        'flex-1 py-2 rounded-lg border text-[14px] font-semibold transition ' +
+                        (roundMinutes === m
+                          ? 'border-accent bg-accent/15 text-text'
+                          : 'border-line text-muted hover:border-accent/50')
+                      }
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <div
+            className="rounded-[18px] border border-line p-6 text-center"
+            style={{ background: 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))' }}
+          >
+            <div className="text-[11px] uppercase tracking-wider text-muted mb-3">Код сессии</div>
+            <div className="font-serif text-3xl text-accent tracking-[.2em] mb-4">{code}</div>
+            <div id="qr-container" className="mx-auto bg-white p-2 rounded-lg w-fit mb-4" />
+            <p className="text-[12px] text-muted leading-snug">
+              Гости сканируют QR → вводят имя → заполняют карточку.
+            </p>
+          </div>
+
+          <div
+            className="rounded-[18px] border border-line p-5"
+            style={{ background: 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))' }}
+          >
+            <div className="text-[12px] uppercase tracking-wider text-muted mb-2">
+              Команды: {totalTeams}
+            </div>
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {totalTeams === 0 && (
+                <span className="text-[12px] text-muted">Пока никто не подключился</span>
+              )}
+              {(state.teams || []).map((t: any) => (
+                <span
+                  key={t.id}
+                  className="text-[11px] px-2 py-1 rounded-full bg-white/5 text-[#cdbca8] border border-line"
+                >
+                  {t.name}
+                </span>
+              ))}
+            </div>
+
+            <button
+              onClick={advance}
+              disabled={busy || !ready || totalTeams === 0}
+              className="w-full py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {busy ? 'Переход…' : 'Начать сбор карточек'}
+              <i className="fa-solid fa-arrow-right ml-2" />
+            </button>
+            {!ready && (
+              <p className="text-[11.5px] text-muted mt-2 text-center">
+                Заполните тип, жертву и место
+              </p>
+            )}
+            {ready && totalTeams === 0 && (
+              <p className="text-[11.5px] text-muted mt-2 text-center">
+                Дождитесь хотя бы одного игрока
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustomRevealScreen({
+  state,
+  advance,
+  busy
+}: {
+  state: any;
+  advance: () => void;
+  busy: boolean;
+}) {
+  return (
+    <div className="min-h-screen p-6 md:p-8 max-w-[800px] mx-auto flex flex-col justify-center">
+      <div className="text-center mb-8">
+        <div className="text-[11px] tracking-[0.25em] uppercase text-accent mb-2">
+          Конструктор · Роли
+        </div>
+        <h1 className="font-serif text-4xl text-text font-semibold m-0">Каждый смотрит свою роль</h1>
+        <p className="text-muted text-[14px] mt-3 max-w-[460px] mx-auto">
+          Игроки смотрят на телефоны: один из них — убийца. Когда все посмотрели, нажмите
+          «Начать игру».
+        </p>
+      </div>
+
+      <div className="rounded-[18px] border border-line p-6 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {(state.teams || []).map((t: any) => (
+            <div
+              key={t.id}
+              className="flex items-center gap-3 p-3 rounded-xl border border-line bg-white/[.02]"
+            >
+              <span className="w-10 h-10 rounded-full border border-line bg-black/30 grid place-items-center text-accent">
+                <i className="fa-solid fa-user-secret" />
+              </span>
+              <div className="min-w-0">
+                <div className="text-text font-semibold truncate">{t.name}</div>
+                <div className="text-[12px] text-muted">{(t.players || []).length} в команде</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex justify-center">
+        <button
+          onClick={advance}
+          disabled={busy}
+          className="px-8 py-4 rounded-xl bg-accent text-white font-bold text-[16px] disabled:opacity-40"
+        >
+          {busy ? 'Запуск…' : 'Все посмотрели — начать игру'}
+          <i className="fa-solid fa-play ml-2.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+const CLUE_ICONS = [
+  { v: 'fa-bullhorn', l: 'Объявление' },
+  { v: 'fa-fingerprint', l: 'Отпечаток' },
+  { v: 'fa-mobile-screen', l: 'Телефон' },
+  { v: 'fa-note-sticky', l: 'Записка' },
+  { v: 'fa-video', l: 'Видео' },
+  { v: 'fa-key', l: 'Ключ' },
+  { v: 'fa-flask', l: 'Экспертиза' },
+  { v: 'fa-comment', l: 'Показание' }
+];
+
+function InjectClueModal({
+  onClose,
+  onSubmit
+}: {
+  onClose: () => void;
+  onSubmit: (clue: { name: string; desc: string; icon: string; type: string }) => void;
+}) {
+  const [name, setName] = useState('');
+  const [desc, setDesc] = useState('');
+  const [icon, setIcon] = useState('fa-bullhorn');
+  const [type, setType] = useState('вброс');
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const valid = desc.trim().length > 0;
+
+  return (
+    <div
+      className="fixed inset-0 z-40 bg-[rgba(8,4,3,.85)] grid place-items-center p-5 overflow-y-auto"
+      onClick={e => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="relative max-w-[560px] w-full bg-[#1a110d] border border-line rounded-[22px] p-7 my-8">
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 w-9 h-9 rounded-full border border-line bg-white/[.04] grid place-items-center text-text hover:bg-white/10"
+        >
+          <i className="fa-solid fa-xmark text-sm" />
+        </button>
+
+        <div className="text-[11px] font-bold tracking-[.2em] uppercase text-accent mb-2">
+          Только для ведущего
+        </div>
+        <h2 className="font-serif text-3xl text-text font-semibold mb-4">Вбросить улику</h2>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider text-muted mb-1.5">
+              Название
+            </label>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value.slice(0, 60))}
+              placeholder="Окровавленный платок"
+              className="w-full px-3.5 py-2.5 rounded-lg bg-black/30 border border-line text-text text-[14px] outline-none focus:border-accent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider text-muted mb-1.5">
+              Текст улики
+            </label>
+            <textarea
+              value={desc}
+              onChange={e => setDesc(e.target.value.slice(0, 300))}
+              placeholder="Найден в мусорном баке у чёрного хода. Кровь не человеческая… или человеческая?"
+              rows={3}
+              className="w-full px-3.5 py-2.5 rounded-lg bg-black/30 border border-line text-text text-[14px] outline-none focus:border-accent resize-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-muted mb-1.5">
+                Иконка
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {CLUE_ICONS.map(ic => (
+                  <button
+                    key={ic.v}
+                    onClick={() => setIcon(ic.v)}
+                    title={ic.l}
+                    className={
+                      'w-9 h-9 rounded-lg border grid place-items-center transition ' +
+                      (icon === ic.v
+                        ? 'border-accent bg-accent/15 text-accent'
+                        : 'border-line text-muted hover:border-accent/50')
+                    }
+                  >
+                    <i className={`fa-solid ${ic.v} text-[13px]`} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-muted mb-1.5">
+                Тип
+              </label>
+              <input
+                value={type}
+                onChange={e => setType(e.target.value.slice(0, 30))}
+                placeholder="вброс"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-black/30 border border-line text-text text-[14px] outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6 flex-wrap">
+          <button
+            onClick={() => {
+              if (!valid) return;
+              onSubmit({ name: name.trim() || 'Новая улика', desc: desc.trim(), icon, type: type.trim() || 'вброс' });
+            }}
+            disabled={!valid}
+            className="px-6 py-3 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40"
+          >
+            <i className="fa-solid fa-bullhorn" />
+            Опубликовать
+          </button>
+          <button
+            onClick={onClose}
+            className="px-6 py-3 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px]"
+          >
+            Отмена
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// ГЛАВНЫЙ КОМПОНЕНТ
+// ============================================================
+
 export default function Screen() {
   const { code } = useParams();
   const [state, setState] = useState<any>(null);
@@ -58,6 +640,8 @@ export default function Screen() {
   const audio = useAudio();
   const [bgUrl, setBgUrl] = useState<string>('');
   const joinedRef = useRef(false);
+  const [injectOpen, setInjectOpen] = useState(false);
+
 
   const trace = (event: string, data?: any) => {
     if (!code) return;
@@ -69,12 +653,10 @@ export default function Screen() {
     const sc = state.scenario;
     const ch = state.chapter;
     const isManor = sc?.id === 'manor';
-    // Для manor используем SVG-сцены — bgUrl не нужен
     if (isManor) {
       setBgUrl('');
       return;
     }
-    // Для theatre свои сцены на интро и всех главах (включая финал) — фото-фон не нужен
     const theatreHasScene = sc?.id === 'theatre' && (state.phase === 'intro' || state.phase === 'story');
     if (theatreHasScene) {
       setBgUrl('');
@@ -85,7 +667,6 @@ export default function Screen() {
     setBgUrl(url);
   }, [state?.phase, state?.round, state?.chapter?.bg, state?.scenario?.bg, state?.scenario?.id]);
 
-  // Останавливать озвучку при смене фазы
   const prevPhaseRef = useRef<string | null>(null);
   useEffect(() => {
     if (!state?.phase) return;
@@ -114,15 +695,33 @@ export default function Screen() {
     };
   }, [code]);
 
+  // QR для обычных сценариев
   useEffect(() => {
     if (!state) return;
+    if (state.isCustom) return;
     const url = `${location.origin}/play/${code}`;
     QRCode.toDataURL(url, {
       width: 320,
       margin: 1,
       color: { dark: '#1a0f0a', light: '#f3e6cf' }
     }).then(setQr);
-  }, [state?.code, code]);
+  }, [state?.code, code, state?.isCustom]);
+
+  // QR для custom-лоби
+  useEffect(() => {
+    if (!state?.isCustom || state.phase !== 'lobby') return;
+    const url = `${location.origin}/play/${code}`;
+    QRCode.toDataURL(url, {
+      width: 240,
+      margin: 1,
+      color: { dark: '#1a0f0a', light: '#f3e6cf' }
+    }).then(dataUrl => {
+      const slot = document.getElementById('qr-container');
+      if (slot) {
+        slot.innerHTML = `<img src="${dataUrl}" alt="QR" width="240" height="240" />`;
+      }
+    });
+  }, [state?.isCustom, state?.phase, code]);
 
   const advance = () => {
     if (busy) return;
@@ -175,12 +774,39 @@ export default function Screen() {
     revealedClueIndices
   } = state;
 
+  // ===== CUSTOM: конструктор =====
+  if (state.isCustom && (phase === 'lobby' || phase === 'build')) {
+    return (
+      <CustomBuilderScreen
+        state={state}
+        code={code!}
+        sock={sock.current}
+        advance={advance}
+        busy={busy}
+      />
+    );
+  }
+
+  // ===== CUSTOM: показ ролей =====
+  if (state.isCustom && phase === 'reveal') {
+    return <CustomRevealScreen state={state} advance={advance} busy={busy} />;
+  }
+
+  const injectClue = (clue: { name: string; desc: string; icon: string; type: string }) => {
+  sock.current.emit('host:inject-clue', { code, clue }, (res: any) => {
+    if (res?.error) {
+      alert('Не удалось вбросить улику: ' + res.error);
+      return;
+    }
+    setInjectOpen(false);
+  });
+  };
+
   const eliminated: string[] = eliminatedSuspects || [];
   const aliveSuspects = scenario.suspects.filter((s: any) => !eliminated.includes(s.id));
 
-return (
-  <div className="min-h-screen p-6 md:p-8 max-w-[1200px] mx-auto">
-
+  return (
+    <div className="min-h-screen p-6 md:p-8 max-w-[1200px] mx-auto">
       {bgUrl && (
         <div
           className="fixed inset-0 -z-20 transition-opacity duration-700"
@@ -193,7 +819,6 @@ return (
         />
       )}
 
-      {/* SVG-сцены показываем только для сценария 'dinner' — для остальных фон из bgUrl */}
       {scenario.id === 'dinner' && (
         <>
           {phase === 'intro' && <IntroScene />}
@@ -237,211 +862,196 @@ return (
         totalRounds={totalRounds}
         teamsCount={teams.length}
         cluesCount={clues.length}
+        customSetup={state.customSetup}
       />
-      {/* ⬇ ОТКРЫВАЕМ ОБЁРТКУ ⬇ */}
-      <div
-
-      >
-
-      {phase === 'lobby' && (
-        <Lobby
-          code={code}
-          qr={qr}
-          teams={teams}
-          advance={advance}
-          goBack={goBack}
-          busy={busy}
-          sock={sock}
-          trace={trace}
-        />
-      )}
-      {phase === 'intro' && (
-        state.isDemo ? (
-          <DemoIntro scenario={scenario} advance={advance} busy={busy} />
-        ) : (
-          <Intro scenario={scenario} advance={advance} goBack={goBack} busy={busy} />
-        )
-      )}
-
-      {phase === 'story' && (
-        state.isDemo ? (
-          <DemoStory
-            chapter={chapter}
-            clues={clues}
-            advance={advance}
-            busy={busy}
-          />
-        ) : (
-          <Story
-            chapter={chapter}
-            round={round}
+      <div>
+        {phase === 'lobby' && (
+          <Lobby
+            code={code}
+            qr={qr}
+            teams={teams}
             advance={advance}
             goBack={goBack}
             busy={busy}
+            sock={sock}
+            trace={trace}
           />
-        )
-      )}
+        )}
+        {phase === 'intro' && (
+          state.isDemo ? (
+            <DemoIntro scenario={scenario} advance={advance} busy={busy} />
+          ) : (
+            <Intro scenario={scenario} advance={advance} goBack={goBack} busy={busy} />
+          )
+        )}
 
-      {phase === 'discussion' && (
-        <Discussion
-          scenario={scenario}
-          chapter={chapter}
-          clues={clues}
-          revealedClueIndices={revealedClueIndices || []}
-          round={round}
-          roundStartedAt={roundStartedAt}
-          roundPausedAt={state.roundPausedAt}
-          roundPausedTotalMs={state.roundPausedTotalMs}
-          roundDurationSec={state.roundDurationSec}
-          clueTimesSec={clueTimesSec || REVEAL_MARKS}
-          advance={advance}
-          goBack={goBack}
-          busy={busy}
-          onAccuse={() => setAccuseOpen(true)}
-          onTogglePause={togglePause}
-        />
-      )}
+        {phase === 'story' && (
+          state.isDemo ? (
+            <DemoStory chapter={chapter} clues={clues} advance={advance} busy={busy} />
+          ) : (
+            <Story chapter={chapter} round={round} advance={advance} goBack={goBack} busy={busy} />
+          )
+        )}
 
-      {phase === 'voting' && (
-        <div>
-          <div className="text-center mb-10">
-            <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-3">
-              Голосование
-            </h2>
-            <p className="text-muted max-w-[560px] mx-auto">
-              {state.isDemo
-                ? 'Изучите улики. Затем капитаны команд выбирают подозреваемого на своих телефонах.'
-                : <>Капитаны команд выбирают подозреваемого <b>на своих телефонах</b>.</>}
-            </p>
-            {!state.isDemo && (
-              <div className="mt-4 text-2xl font-mono text-accent tabular-nums">
-                <VotingCountdown
-                  votingStartedAt={state.votingStartedAt}
-                  duration={state.votingDurationSec || 60}
-                />
+        {phase === 'discussion' && (
+          <Discussion
+            scenario={scenario}
+            chapter={chapter}
+            clues={clues}
+            revealedClueIndices={revealedClueIndices || []}
+            round={round}
+            roundStartedAt={roundStartedAt}
+            roundPausedAt={state.roundPausedAt}
+            roundPausedTotalMs={state.roundPausedTotalMs}
+            roundDurationSec={state.roundDurationSec}
+            clueTimesSec={clueTimesSec || REVEAL_MARKS}
+            advance={advance}
+            goBack={goBack}
+            busy={busy}
+            onAccuse={() => setAccuseOpen(true)}
+            onTogglePause={togglePause}
+            onInjectClue={state.isCustom ? () => setInjectOpen(true) : undefined}
+          />
+        )}
+
+        {phase === 'voting' && (
+          <div>
+            <div className="text-center mb-10">
+              <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-3">
+                Голосование
+              </h2>
+              <p className="text-muted max-w-[560px] mx-auto">
+                {state.isDemo
+                  ? 'Изучите улики. Затем капитаны команд выбирают подозреваемого на своих телефонах.'
+                  : <>Капитаны команд выбирают подозреваемого <b>на своих телефонах</b>.</>}
+              </p>
+              {!state.isDemo && (
+                <div className="mt-4 text-2xl font-mono text-accent tabular-nums">
+                  <VotingCountdown
+                    votingStartedAt={state.votingStartedAt}
+                    duration={state.votingDurationSec || 60}
+                  />
+                </div>
+              )}
+            </div>
+
+            {state.isDemo ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mx-auto mb-10 max-w-[1200px]">
+                {(state.clues || []).map((c: any, i: number) => (
+                  <div
+                    key={i}
+                    className="bg-[#f3e6cf] text-[#2a1c14] rounded-lg p-5 flex flex-col min-h-[190px]"
+                    style={{ boxShadow: '0 16px 40px -22px rgba(0,0,0,.8)' }}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="w-8 h-8 rounded-lg bg-[#1d120c] text-[#efe3cc] grid place-items-center">
+                        <i className={`fa-solid ${c.icon} text-[13px]`} />
+                      </span>
+                      <b className="text-[14.5px] font-bold">{c.name}</b>
+                    </div>
+                    <p className="m-0 flex-1 text-[13px] leading-relaxed">{c.desc}</p>
+                    <small className="mt-3 pt-2 border-t border-dashed border-[rgba(42,28,20,.22)] text-[10px] tracking-[.14em] uppercase text-[#8a6a52] font-bold">
+                      {c.type}
+                    </small>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div
+                className={
+                  'grid gap-4 mx-auto mb-10 ' +
+                  (aliveSuspects.length === 1
+                    ? 'grid-cols-1 max-w-md'
+                    : aliveSuspects.length === 2
+                    ? 'grid-cols-1 md:grid-cols-2 max-w-2xl'
+                    : 'md:grid-cols-2 lg:grid-cols-3 max-w-[1200px]')
+                }
+              >
+                {aliveSuspects.map((s: any) => (
+                  <div key={s.id} className="bg-panel border border-line rounded-2xl p-5 flex flex-col">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="w-12 h-12 rounded-full grid place-items-center bg-panel2 border border-line text-accent text-lg flex-none">
+                        <i className={`fa-solid ${s.icon}`} />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-serif text-xl text-text leading-tight">{s.name}</div>
+                        <div className="text-[10.5px] tracking-wider uppercase text-muted">{s.role}</div>
+                      </div>
+                    </div>
+                    <div className="text-[13px] text-muted leading-snug mb-3">{s.description}</div>
+                    <div className="text-[12px] text-muted mt-auto pt-3 border-t border-line/60">
+                      <div>
+                        <span className="text-accent">Мотив:</span> {s.motive}
+                      </div>
+                      <div className="mt-1">
+                        <span className="text-accent">Алиби:</span> {s.alibi}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
-          </div>
 
-          {/* ⬇ Для демо — улики, для обычной игры — подозреваемые ⬇ */}
-          {state.isDemo ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mx-auto mb-10 max-w-[1200px]">
-              {(state.clues || []).map((c: any, i: number) => (
-                <div
-                  key={i}
-                  className="bg-[#f3e6cf] text-[#2a1c14] rounded-lg p-5 flex flex-col min-h-[190px]"
-                  style={{ boxShadow: '0 16px 40px -22px rgba(0,0,0,.8)' }}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="w-8 h-8 rounded-lg bg-[#1d120c] text-[#efe3cc] grid place-items-center">
-                      <i className={`fa-solid ${c.icon} text-[13px]`} />
-                    </span>
-                    <b className="text-[14.5px] font-bold">{c.name}</b>
-                  </div>
-                  <p className="m-0 flex-1 text-[13px] leading-relaxed">{c.desc}</p>
-                  <small className="mt-3 pt-2 border-t border-dashed border-[rgba(42,28,20,.22)] text-[10px] tracking-[.14em] uppercase text-[#8a6a52] font-bold">
-                    {c.type}
-                  </small>
-                </div>
-              ))}
+            <div className="flex justify-center">
+              <button
+                onClick={advance}
+                disabled={busy}
+                className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
+              >
+                Подвести итоги <i className="fa-solid fa-gavel" />
+              </button>
             </div>
-          ) : (
-            <div
-              className={
-                'grid gap-4 mx-auto mb-10 ' +
-                (aliveSuspects.length === 1
-                  ? 'grid-cols-1 max-w-md'
-                  : aliveSuspects.length === 2
-                  ? 'grid-cols-1 md:grid-cols-2 max-w-2xl'
-                  : 'md:grid-cols-2 lg:grid-cols-3 max-w-[1200px]')
-              }
-            >
-              {aliveSuspects.map((s: any) => (
-                <div
-                  key={s.id}
-                  className="bg-panel border border-line rounded-2xl p-5 flex flex-col"
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="w-12 h-12 rounded-full grid place-items-center bg-panel2 border border-line text-accent text-lg flex-none">
-                      <i className={`fa-solid ${s.icon}`} />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="font-serif text-xl text-text leading-tight">
-                        {s.name}
-                      </div>
-                      <div className="text-[10.5px] tracking-wider uppercase text-muted">
-                        {s.role}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-[13px] text-muted leading-snug mb-3">
-                    {s.description}
-                  </div>
-                  <div className="text-[12px] text-muted mt-auto pt-3 border-t border-line/60">
-                    <div>
-                      <span className="text-accent">Мотив:</span> {s.motive}
-                    </div>
-                    <div className="mt-1">
-                      <span className="text-accent">Алиби:</span> {s.alibi}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="flex justify-center">
-            <button
-              onClick={advance}
-              disabled={busy}
-              className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
-            >
-              Подвести итоги <i className="fa-solid fa-gavel" />
-            </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {phase === 'results' && lastResult && (
-        <Results
-          result={lastResult}
-          teams={teams}
-          suspects={scenario.suspects}
-          eliminated={eliminated}
-          eliminationOrder={scenario.eliminationOrder}
-          advance={advance}
-          round={round}
-          totalRounds={totalRounds}
-          busy={busy}
-        />
-      )}
+        {phase === 'results' && lastResult && (
+          <Results
+            result={lastResult}
+            teams={teams}
+            suspects={scenario.suspects}
+            eliminated={eliminated}
+            eliminationOrder={scenario.eliminationOrder}
+            advance={advance}
+            round={round}
+            totalRounds={totalRounds}
+            busy={busy}
+          />
+        )}
 
-      {phase === 'end' && (
-        <EndView
-          state={state}
-          onReset={reset}
-          onShowResults={advance}
-          code={code}
-          sock={sock}
-          trace={trace}
-        />
-      )}
+        {phase === 'end' && (
+          <EndView
+            state={state}
+            onReset={reset}
+            onShowResults={advance}
+            code={code}
+            sock={sock}
+            trace={trace}
+          />
+        )}
 
-      {phase === 'results-final' && (
-        <ResultsFinal
-          teams={teams}
-          onReset={reset}
-          code={code}
-          sock={sock}
-          trace={trace}
-        />
-      )}
+        {phase === 'results-final' && (
+          <ResultsFinal
+            teams={teams}
+            totalRounds={totalRounds}
+            onReset={reset}
+            code={code}
+            sock={sock}
+            trace={trace}
+          />
+        )}
       </div>
       {accuseOpen && phase === 'discussion' && (
         <AccuseModal
           suspects={aliveSuspects}
           onClose={() => setAccuseOpen(false)}
           onConfirm={() => setAccuseOpen(false)}
+        />
+      )}
+
+      {injectOpen && phase === 'discussion' && state.isCustom && (
+        <InjectClueModal
+          onClose={() => setInjectOpen(false)}
+          onSubmit={injectClue}
         />
       )}
     </div>
@@ -458,10 +1068,16 @@ function Header({
   round,
   totalRounds,
   teamsCount,
-  cluesCount
+  cluesCount,
+  customSetup
 }: any) {
+  const title = customSetup?.type
+    ? `${customSetup.type} · ${customSetup.victim || 'жертва'}`
+    : scenario.title;
   const phaseLabel: Record<string, string> = {
     lobby: 'Лобби',
+    build: 'Сбор карточек',
+    reveal: 'Роли',
     intro: 'Дело открыто',
     story: 'Глава',
     discussion: 'Обсуждение',
@@ -479,7 +1095,6 @@ function Header({
         <span className="text-[13px] text-muted">{scenario.location}</span>
       </div>
       <div className="flex gap-2 flex-wrap">
-
         {phase !== 'lobby' && phase !== 'end' && (
           <span className="px-3.5 py-2 rounded-full border border-line bg-panel text-[11px] font-bold tracking-wider uppercase">
             <i className="fa-solid fa-layer-group text-accent mr-2" />
@@ -643,7 +1258,7 @@ function Lobby({ code, qr, teams, advance, goBack, busy, sock, trace }: any) {
 }
 
 // ============================================================
-// INTRO (кнопка «Озвучить правила» — справа над списком)
+// INTRO
 // ============================================================
 
 function Intro({ scenario, advance, goBack, busy }: any) {
@@ -832,9 +1447,7 @@ function ClueAudioButton({ url }: { url?: string }) {
       }
       title={audio.playing ? 'Пауза' : 'Озвучить улику'}
     >
-      <i
-        className={`fa-solid ${audio.playing ? 'fa-pause' : 'fa-volume-high'} text-[11px]`}
-      />
+      <i className={`fa-solid ${audio.playing ? 'fa-pause' : 'fa-volume-high'} text-[11px]`} />
     </button>
   );
 }
@@ -854,7 +1467,8 @@ function Discussion({
   clueTimesSec,
   advance,
   busy,
-  onTogglePause
+  onTogglePause,
+  onInjectClue
 }: any) {
   const [now, setNow] = useState(Date.now());
   const audioGlobal = useAudio();
@@ -1011,7 +1625,6 @@ function Discussion({
                   <ClueAudioButton url={c.audioUrl} />
                 </div>
                 <p className="m-0 flex-1 font-mono text-[13px] leading-relaxed text-[#3a281c]">{c.desc}</p>
-
               </div>
             );
           }
@@ -1063,21 +1676,33 @@ function Discussion({
         </>
       )}
 
-      <div className="flex gap-3 mt-10 pt-6 border-t border-line flex-wrap">
+    <div className="flex gap-3 mt-10 pt-6 border-t border-line flex-wrap">
+      <button
+        onClick={advance}
+        disabled={busy}
+        className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
+      >
+        {round >= 4 ? 'Финальная разгадка' : 'Голосование'} <i className="fa-solid fa-arrow-right" />
+      </button>
+
+      {onInjectClue && (
         <button
-          onClick={advance}
-          disabled={busy}
-          className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
+          onClick={onInjectClue}
+          className="px-6 py-3.5 rounded-xl border border-accent text-accent font-bold text-[15px] inline-flex items-center gap-2.5 hover:bg-accent/10 transition"
         >
-          {round >= 4 ? 'Финальная разгадка' : 'Голосование'} <i className="fa-solid fa-arrow-right" />
+          <i className="fa-solid fa-bullhorn" />
+          Вбросить улику
         </button>
-      </div>
+      )}
+    </div>
+
+
     </div>
   );
 }
 
 // ============================================================
-// ELIMINATED CARD (оранжевый штамп + озвучка)
+// ELIMINATED CARD
 // ============================================================
 
 function EliminatedCard({ suspect }: { suspect: any }) {
@@ -1088,8 +1713,7 @@ function EliminatedCard({ suspect }: { suspect: any }) {
     const t = setTimeout(() => {
       setStamped(true);
       try {
-        const Ctx =
-          (window as any).AudioContext || (window as any).webkitAudioContext;
+        const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
         if (!Ctx) return;
         const ctx = new Ctx();
         const now = ctx.currentTime;
@@ -1132,12 +1756,8 @@ function EliminatedCard({ suspect }: { suspect: any }) {
             <i className={`fa-solid ${suspect.icon}`} />
           </span>
           <div>
-            <div className="font-serif text-4xl md:text-5xl leading-tight text-text">
-              {suspect.name}
-            </div>
-            <div className="text-[12px] tracking-wider uppercase text-muted mt-1">
-              {suspect.role}
-            </div>
+            <div className="font-serif text-4xl md:text-5xl leading-tight text-text">{suspect.name}</div>
+            <div className="text-[12px] tracking-wider uppercase text-muted mt-1">{suspect.role}</div>
           </div>
         </div>
 
@@ -1196,7 +1816,7 @@ function EliminatedCard({ suspect }: { suspect: any }) {
 }
 
 // ============================================================
-// FINAL VERDICT CARD (зелёный штамп + озвучка)
+// FINAL VERDICT CARD
 // ============================================================
 
 function FinalVerdictCard({ suspect }: { suspect: any }) {
@@ -1204,9 +1824,7 @@ function FinalVerdictCard({ suspect }: { suspect: any }) {
   const audio = useAudioButton(suspect.verdictAudioUrl);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      setStamped(true);
-    }, 500);
+    const t = setTimeout(() => setStamped(true), 500);
     return () => clearTimeout(t);
   }, [suspect.id]);
 
@@ -1286,7 +1904,7 @@ function FinalVerdictCard({ suspect }: { suspect: any }) {
 }
 
 // ============================================================
-// KILLER CARD (красный штамп + озвучка)
+// KILLER CARD
 // ============================================================
 
 function KillerCard({ suspect }: { suspect: any }) {
@@ -1396,18 +2014,15 @@ function Results({
   if (isLast) {
     const killerId = safeSuspects.find((s: any) => s.isGuilty)?.id;
 
-    // 1) Последний в eliminationOrder — по канону именно он "последний не убийца"
     const lastInOrder =
       Array.isArray(eliminationOrder) && eliminationOrder.length > 0
         ? eliminationOrder[eliminationOrder.length - 1]
         : null;
 
-    // 2) Fallback: единственный живой не-убийца
     const aliveNonKillers = safeSuspects.filter(
       (s: any) => s.id !== killerId && !safeEliminated.includes(s.id)
     );
 
-    // 3) Крайний fallback: последний не-убийца в массиве
     const anyNonKiller = [...safeSuspects].reverse().find((s: any) => s.id !== killerId);
 
     const lastId = lastInOrder || aliveNonKillers[0]?.id || anyNonKiller?.id;
@@ -1512,7 +2127,7 @@ function EndView({ state, onReset, onShowResults, code, sock, trace }: any) {
           onClick={() => {
             trace?.('host_close_click', {});
             sock.current.emit('host:close', { code });
-            window.location.href = '/host'; // или '/', если экран выбора сюжета находится на корне
+            window.location.href = '/host';
           }}
           className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] inline-flex items-center"
         >
@@ -1539,7 +2154,9 @@ function AccuseModal({
   const [pick, setPick] = useState<string | null>(null);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
@@ -1547,7 +2164,9 @@ function AccuseModal({
   return (
     <div
       className="fixed inset-0 z-30 bg-[rgba(8,4,3,.85)] grid place-items-center p-5 overflow-y-auto"
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={e => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div className="relative max-w-[760px] w-full bg-[#1a110d] border border-line rounded-[22px] p-8 md:p-9 my-8">
         <button
@@ -1582,8 +2201,12 @@ function AccuseModal({
                 <div className="text-[15px] text-text font-bold m-0">{s.name}</div>
                 <div className="text-[12.5px] text-accent font-semibold mb-2">{s.role}</div>
                 <div className="text-[12.5px] text-[#c3b2a2] leading-snug">
-                  <div><b className="text-[#e6d6c0]">Мотив:</b> {s.motive}</div>
-                  <div><b className="text-[#e6d6c0]">Алиби:</b> {s.alibi}</div>
+                  <div>
+                    <b className="text-[#e6d6c0]">Мотив:</b> {s.motive}
+                  </div>
+                  <div>
+                    <b className="text-[#e6d6c0]">Алиби:</b> {s.alibi}
+                  </div>
                 </div>
               </div>
             </button>
@@ -1640,9 +2263,16 @@ function VotingCountdown({
 // RESULTS FINAL
 // ============================================================
 
-function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
+function ResultsFinal({ teams, onReset, code, sock, trace, totalRounds }: any) {
   const sorted = [...(teams || [])].sort((a: any, b: any) => b.score - a.score);
   const fmtScore = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+  // Сколько раундов реально играли
+  const rounds = Math.max(
+    totalRounds || 0,
+    ...((teams || []) as any[]).map((t: any) => (t.roundScores || []).length),
+    1
+  );
+
   return (
     <div>
       <h1 className="font-serif text-[clamp(44px,5.5vw,72px)] leading-none text-text font-semibold mb-3">
@@ -1650,13 +2280,9 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
       </h1>
       <div className="text-[15px] text-[#b3a698] leading-relaxed max-w-[720px] mb-8">
         <p className="m-0 mb-2">
-          Спасибо за игру! До встречи в новых расследованиях — каждое дело
-          хранит свою тайну.
+          Спасибо за игру! До встречи в новых расследованиях — каждое дело хранит свою тайну.
         </p>
-        <p className="m-0">
-          Соберите друзей за столом и попробуйте раскрыть следующее
-          преступление.
-        </p>
+        <p className="m-0">Соберите друзей за столом и попробуйте раскрыть следующее преступление.</p>
       </div>
       <div className="bg-panel border border-line rounded-2xl overflow-x-auto mb-10">
         <table className="w-full text-sm min-w-[560px]">
@@ -1664,16 +2290,20 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
             <tr>
               <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Место</th>
               <th className="text-left text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Команда</th>
-              <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Р1</th>
-              <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Р2</th>
-              <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Р3</th>
-              <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Р4</th>
+              {Array.from({ length: rounds }, (_, i) => (
+                <th
+                  key={i}
+                  className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line"
+                >
+                  Р{i + 1}
+                </th>
+              ))}
               <th className="text-right text-[10.5px] tracking-wider uppercase text-muted font-bold p-4 border-b border-line">Итого</th>
             </tr>
           </thead>
           <tbody>
             {sorted.map((t: any, i: number) => {
-              const rs = t.roundScores || [0, 0, 0, 0];
+              const rs = t.roundScores || [];
               return (
                 <tr key={t.id} className="border-b border-line last:border-0">
                   <td className="p-4">
@@ -1688,15 +2318,19 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
                     )}
                   </td>
                   <td className="p-4 text-text">{t.name}</td>
-                  {[0, 1, 2, 3].map(ri => (
+                  {Array.from({ length: rounds }, (_, ri) => (
                     <td
                       key={ri}
                       className={
                         'p-4 text-right tabular-nums ' +
-                        (rs[ri] < 0 ? 'text-accent' : rs[ri] > 0 ? 'text-green-400' : 'text-muted')
+                        ((rs[ri] ?? 0) < 0
+                          ? 'text-accent'
+                          : (rs[ri] ?? 0) > 0
+                          ? 'text-green-400'
+                          : 'text-muted')
                       }
                     >
-                      {rs[ri] === 0 ? '—' : fmtScore(rs[ri])}
+                      {(rs[ri] ?? 0) === 0 ? '—' : fmtScore(rs[ri])}
                     </td>
                   ))}
                   <td className="p-4 text-right font-serif text-2xl font-bold text-text tabular-nums">
@@ -1719,7 +2353,7 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
           onClick={() => {
             trace?.('host_close_click', {});
             sock.current.emit('host:close', { code });
-            window.location.href = '/host'; // или '/', если экран выбора сюжета находится на корне
+            window.location.href = '/host';
           }}
           className="px-6 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-[15px] inline-flex items-center"
         >
@@ -1731,7 +2365,7 @@ function ResultsFinal({ teams, onReset, code, sock, trace }: any) {
 }
 
 // ============================================================
-// DEMO STORY — упрощённый экран главы для демо-режима
+// DEMO STORY / DEMO INTRO
 // ============================================================
 
 function DemoStory({ chapter, advance, busy }: any) {
@@ -1773,9 +2407,7 @@ function DemoIntro({ scenario, advance, busy }: any) {
         <h1 className="font-serif text-[clamp(44px,5.5vw,72px)] leading-none text-text font-semibold mb-4">
           {scenario.title}
         </h1>
-        <p className="text-[16px] text-[#cdbca8] leading-relaxed mb-8">
-          {scenario.description}
-        </p>
+        <p className="text-[16px] text-[#cdbca8] leading-relaxed mb-8">{scenario.description}</p>
 
         <dl className="space-y-5 m-0">
           <div>
