@@ -38,6 +38,10 @@ model User {
   consentIp    String?
   active       Boolean       @default(true)
   createdAt    DateTime      @default(now())
+  expiresAt    DateTime?                                    
+  description  String?                                      
+  phone        String?                                      
+  address      String?                                      
   sessions     GameSession[]
   payments     Payment[]
   purchases    Purchase[]

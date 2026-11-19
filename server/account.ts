@@ -54,6 +54,11 @@ export async function accountRoutes(app: FastifyInstance) {
     if (!user || !user.active) return reply.code(401).send({ error: 'invalid' });
     const ok = await A.verifyPassword(user.password, password);
     if (!ok) return reply.code(401).send({ error: 'invalid' });
+    
+    // ⬇ проверка срока действия
+    if (user.expiresAt && user.expiresAt < new Date()) {
+    return reply.code(403).send({ error: 'expired' });
+    }
     A.setAuthCookie(reply, A.signToken({ uid: user.id, role: user.role as any }));
     return publicUser(user);
   });

@@ -45,23 +45,46 @@ export async function routes(app: FastifyInstance) {
   await app.register(accountRoutes);
   await app.register(paymentRoutes);
 
+  // ============================================================
+  // ADMIN: HOSTS
+  // ============================================================
+
   app.get('/api/admin/hosts', async (req, reply) => {
     if (!A.requireRole(req, reply, 'ADMIN')) return;
     return prisma.user.findMany({
       where: { role: 'HOST' },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, email: true, active: true, createdAt: true }
+      select: {
+        id: true, email: true, active: true, createdAt: true,
+        firstName: true, lastName: true,
+        expiresAt: true, description: true, phone: true, address: true
+      }
     });
   });
 
   app.post('/api/admin/hosts', async (req, reply) => {
     if (!A.requireRole(req, reply, 'ADMIN')) return;
-    const { email, password } = (req.body as any) || {};
+    const { email, password, firstName, lastName, expiresAt, description, phone, address } =
+      (req.body as any) || {};
     if (!email || !password) return reply.code(400).send({ error: 'missing' });
+
     const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) return reply.code(409).send({ error: 'exists' });
+
     const hash = await A.hashPassword(password);
-    const u = await prisma.user.create({ data: { email, password: hash, role: 'HOST' } });
+    const u = await prisma.user.create({
+      data: {
+        email,
+        password: hash,
+        role: 'HOST',
+        firstName: firstName || null,
+        lastName: lastName || null,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        description: description || null,
+        phone: phone || null,
+        address: address || null
+      }
+    });
     return { id: u.id, email: u.email };
   });
 
@@ -72,6 +95,30 @@ export async function routes(app: FastifyInstance) {
     if (!u) return reply.code(404).send({ error: 'not_found' });
     await prisma.user.update({ where: { id }, data: { active: !u.active } });
     return { ok: true, active: !u.active };
+  });
+
+  app.delete('/api/admin/hosts/:id', async (req, reply) => {
+    if (!A.requireRole(req, reply, 'ADMIN')) return;
+    const { id } = req.params as any;
+    const auth = A.getAuthFromCookie(req);
+    if (auth && auth.uid === id) {
+      return reply.code(400).send({ error: 'cannot_delete_self' });
+    }
+
+    const sessionsCount = await prisma.gameSession.count({ where: { hostId: id } });
+    if (sessionsCount > 0) {
+      await prisma.user.update({ where: { id }, data: { active: false } });
+      return { ok: true, softDeleted: true };
+    }
+
+    try {
+      await prisma.user.delete({ where: { id } });
+      return { ok: true };
+    } catch {
+      // FK Restrict (payments, purchases) — soft-delete
+      await prisma.user.update({ where: { id }, data: { active: false } });
+      return { ok: true, softDeleted: true };
+    }
   });
 
   // ---- Admin: monitoring ----
@@ -253,6 +300,41 @@ app.delete('/api/admin/scenarios/:id', async (req, reply) => {
   await prisma.scenarioEdit.deleteMany({ where: { id } });
   return { ok: true };
 });
+
+  app.patch('/api/admin/hosts/:id', async (req, reply) => {
+    if (!A.requireRole(req, reply, 'ADMIN')) return;
+    const { id } = req.params as any;
+    const {
+      email, password, firstName, lastName,
+      expiresAt, description, phone, address
+    } = (req.body as any) || {};
+
+    const u = await prisma.user.findUnique({ where: { id } });
+    if (!u) return reply.code(404).send({ error: 'not_found' });
+
+    // если меняется email — проверить уникальность
+    if (email && email !== u.email) {
+      const exists = await prisma.user.findUnique({ where: { email } });
+      if (exists) return reply.code(409).send({ error: 'email_taken' });
+    }
+
+    const data: any = {
+      email: email || undefined,
+      firstName: firstName === undefined ? undefined : (firstName || null),
+      lastName: lastName === undefined ? undefined : (lastName || null),
+      expiresAt: expiresAt === undefined ? undefined : (expiresAt ? new Date(expiresAt) : null),
+      description: description === undefined ? undefined : (description || null),
+      phone: phone === undefined ? undefined : (phone || null),
+      address: address === undefined ? undefined : (address || null)
+    };
+
+    if (password) {
+      data.password = await A.hashPassword(password);
+    }
+
+    await prisma.user.update({ where: { id }, data });
+    return { ok: true };
+  });
 
 // Список всех сценариев (для левой колонки админки)
 app.get('/api/admin/scenarios', async (req, reply) => {
