@@ -30,3 +30,5 @@ caddy_config/
 
 # Vite
 node_modules/.vite
+backups/
+Caddyfile.prod-backup
