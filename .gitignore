@@ -32,3 +32,4 @@ caddy_config/
 node_modules/.vite
 backups/
 Caddyfile.prod-backup
+dump.dump
