@@ -3,14 +3,62 @@ import { useParams } from 'react-router-dom';
 import { getSocket } from '../socket';
 import { api } from '../api';
 
-// ============================================================
-// УТИЛИТЫ
-// ============================================================
-
 const fmt = (s: number) => {
   s = Math.max(0, s);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
+
+const CARD_POOLS = {
+  role: [
+    'Владелец ресторана', 'Главный шеф-повар', 'Су-шеф', 'Официант', 'Бармен',
+    'Сомелье', 'Ресторанный критик', 'Инспектор санэпидемстанции', 'VIP-гость',
+    'Уборщик', 'Гардеробщик', 'Менеджер зала', 'Курьер доставки', 'Бывший партнёр',
+    'Повар-кондитер', 'Постоянный клиент', 'Уволенный сотрудник', 'Фуд-блогер',
+    'Швейцар', 'Поставщик мяса', 'Судья кулинарного шоу', 'Спонсор ресторана',
+    'Журналист-расследователь', 'Начальник охраны', 'Пианист (играл всю ночь)'
+  ],
+  hook: [
+    'Новичок (работает всего неделю)', 'Старый друг жертвы (знал его 10 лет)',
+    'Тайно влюблённый в жертву', 'Тот, кого вчера уволили',
+    'Тот, кому обещали повышение и кинули', 'Должник жертвы (должен миллион)',
+    'Тот, кто шантажировал жертву', 'Бывший муж/жена жертвы',
+    'Тот, кто нашёл труп первым', 'Человек с уголовным прошлым',
+    'Тот, кого жертва публично опозорила', 'Скрывает роман с женой шефа',
+    'Страдает амнезией (не помнит вечер)', 'Тайно записывает всё на диктофон',
+    'Уволен, но притворяется сотрудником', 'Сегодня день рождения (и никто не поздравил)',
+    'Тайно продаёт рецепты конкурентам', 'Пишет книгу о тайнах ресторана',
+    'Пытается подставить другого игрока', 'Находится здесь под чужим именем'
+  ],
+  motive: [
+    'Карьера: жертва снова отдала проект другому', 'Месть: жертва уволила брата без выходного пособия',
+    'Страх: в тот вечер узнал об увольнении', 'Деньги: долю выкупили за бесценок перед взлётом',
+    'Долг в 100 000 рублей', 'Измена с чужой женой', 'Кража из кассы (200 000 руб.)',
+    'Шантаж (были фото компромата)', 'Ревность (жертва флиртовала с моим партнёром)',
+    'Потеря наследства (жертва изменила завещание)', 'Скрытая любовь к жертве (отказ)',
+    'Подменил элитный виски дешёвым', 'Шантажирует директора',
+    'Тайно сливает отзывы конкурентам', 'Огромный долг в микрофинансовой',
+    'Скрывает, что он банкрот', 'Жертва узнала о моих поддельных документах'
+  ],
+  alibi: [
+    'Работал в зале, гости подтверждают — выходил дважды', 'Был в погребе, журнал заполнен до 22:40',
+    'Курил на служебном крыльце, есть окурки', 'Утверждает, что не заходил внутрь — камера не работала',
+    'Был на кухне, готовил', 'Был в баре, смешивал коктейль',
+    'Был в кабинете, считал выручку', 'Был на парковке, грел машину',
+    'Был в раздевалке, переодевался', 'Был у чёрного хода, выносил мусор',
+    'В холодильной камере (перебирал мясо)', 'На чердаке (искал старые коробки)',
+    'В комнате охраны (смотрел камеры)', 'В соседнем баре (отлучался на 10 минут)',
+    'На крыше (любовался огнями)', 'В бухгалтерии (считал выручку)'
+  ]
+};
+
+function pickChips(key: keyof typeof CARD_POOLS, offset: number, count = 4): string[] {
+  const pool = CARD_POOLS[key];
+  const out: string[] = [];
+  for (let i = 0; i < count; i++) {
+    out.push(pool[(offset + i * 7) % pool.length]);
+  }
+  return [...new Set(out)];
+}
 
 // ============================================================
 // RAIN CANVAS (как было)
@@ -198,11 +246,14 @@ function CustomBuildScreen({
   });
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState('');
+  const [shuffleTick, setShuffleTick] = useState(0);
 
-  const teammates: any[] = (myTeam?.players || []).filter(
-    (p: any) => p.nickname !== nickname
-  );
-  const partnerOptions = ['Один', ...teammates.map((p: any) => p.nickname)];
+  const chipSets = {
+    role: pickChips('role', shuffleTick * 3),
+    hook: pickChips('hook', shuffleTick * 3 + 1),
+    motive: pickChips('motive', shuffleTick * 3 + 1),
+    alibi: pickChips('alibi', shuffleTick * 3 + 2)
+  };
 
   const isValid =
     card.role.trim().length > 0 &&
@@ -225,6 +276,70 @@ function CustomBuildScreen({
       setSent(true);
     });
   }
+
+  const field = (
+    label: string,
+    key: 'role' | 'hook' | 'motive' | 'alibi',
+    placeholder: string,
+    max: number,
+    area: boolean
+  ) => (
+    <div>
+      <label className="block text-[11px] uppercase tracking-wider text-[#8d837b] mb-1.5">
+        {label}
+      </label>
+      <div className="flex gap-2">
+        {area ? (
+          <textarea
+            value={card[key]}
+            onChange={e => setCard({ ...card, [key]: e.target.value.slice(0, max) })}
+            placeholder={placeholder}
+            maxLength={max}
+            rows={2}
+            className="flex-1 bg-black/30 border border-[#2a2421] rounded-[10px] px-4 py-3 text-[#e9e2da] text-[15px] outline-none focus:border-[#5a3a30] resize-none"
+          />
+        ) : (
+          <input
+            value={card[key]}
+            onChange={e => setCard({ ...card, [key]: e.target.value.slice(0, max) })}
+            placeholder={placeholder}
+            maxLength={max}
+            className="flex-1 h-[52px] bg-black/30 border border-[#2a2421] rounded-[10px] px-4 text-[#e9e2da] text-[15px] outline-none focus:border-[#5a3a30]"
+          />
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            const pool = CARD_POOLS[key];
+            const fresh = pool[(shuffleTick * 5 + Math.floor(Math.random() * pool.length)) % pool.length];
+            setCard({ ...card, [key]: fresh });
+            setShuffleTick(t => t + 1);
+          }}
+          className="flex-none w-[52px] rounded-[10px] border border-[#2a2421] text-[#a79f93] hover:text-[#e9e2da] hover:border-[#4a3e38] transition"
+          title="Другие карты"
+        >
+          <i className="fa-solid fa-shuffle" />
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-2 mt-2">
+        {chipSets[key].map(v => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setCard({ ...card, [key]: v.slice(0, max) })}
+            className={
+              'px-3 py-1.5 rounded-lg border text-[12.5px] text-left max-w-full transition ' +
+              (card[key] === v.slice(0, max)
+                ? 'border-[#9b3f2c] bg-[#9b3f2c14] text-[#f1e9df]'
+                : 'border-[#2a2421] text-[#a79f93] hover:border-[#4a3e38]')
+            }
+          >
+            {v.length > max ? v.slice(0, max) : v}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="relative min-h-screen flex justify-center bg-[#100e0c] text-[#d8d2c8] overflow-hidden">
@@ -253,59 +368,10 @@ function CustomBuildScreen({
         ) : (
           <>
             <div className="space-y-4">
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider text-[#8d837b] mb-1.5">
-                  Роль
-                </label>
-                <input
-                  value={card.role}
-                  onChange={e => setCard({ ...card, role: e.target.value.slice(0, 40) })}
-                  placeholder="Су-шеф"
-                  maxLength={40}
-                  className="w-full h-[52px] bg-black/30 border border-[#2a2421] rounded-[10px] px-4 text-[#e9e2da] text-[15px] outline-none focus:border-[#5a3a30]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider text-[#8d837b] mb-1.5">
-                  Характеристика
-                </label>
-                <input
-                  value={card.hook}
-                  onChange={e => setCard({ ...card, hook: e.target.value.slice(0, 90) })}
-                  placeholder="Ждала место шефа три года"
-                  maxLength={90}
-                  className="w-full h-[52px] bg-black/30 border border-[#2a2421] rounded-[10px] px-4 text-[#e9e2da] text-[15px] outline-none focus:border-[#5a3a30]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider text-[#8d837b] mb-1.5">
-                  Мотив
-                </label>
-                <textarea
-                  value={card.motive}
-                  onChange={e => setCard({ ...card, motive: e.target.value.slice(0, 140) })}
-                  placeholder="Карьера: Антон отдал её проект другому"
-                  maxLength={140}
-                  rows={2}
-                  className="w-full bg-black/30 border border-[#2a2421] rounded-[10px] px-4 py-3 text-[#e9e2da] text-[15px] outline-none focus:border-[#5a3a30] resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider text-[#8d837b] mb-1.5">
-                  Алиби
-                </label>
-                <textarea
-                  value={card.alibi}
-                  onChange={e => setCard({ ...card, alibi: e.target.value.slice(0, 140) })}
-                  placeholder="Работала в зале, гости подтверждают"
-                  maxLength={140}
-                  rows={2}
-                  className="w-full bg-black/30 border border-[#2a2421] rounded-[10px] px-4 py-3 text-[#e9e2da] text-[15px] outline-none focus:border-[#5a3a30] resize-none"
-                />
-              </div>
+              {field('Роль', 'role', 'Су-шеф', 40, false)}
+              {field('Характеристика', 'hook', 'Ждала место шефа три года', 90, false)}
+              {field('Мотив', 'motive', 'Карьера: Антон отдал её проект другому', 140, true)}
+              {field('Алиби', 'alibi', 'Работала в зале, гости подтверждают', 140, true)}
 
               <div>
                 <label className="block text-[11px] uppercase tracking-wider text-[#8d837b] mb-1.5">
@@ -328,28 +394,6 @@ function CustomBuildScreen({
                   ))}
                 </div>
               </div>
-
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider text-[#8d837b] mb-1.5">
-                  С кем вы были?
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {partnerOptions.map(p => (
-                    <button
-                      key={p}
-                      onClick={() => setCard({ ...card, partner: p })}
-                      className={
-                        'px-3 py-2 rounded-lg border text-[13px] transition ' +
-                        (card.partner === p
-                          ? 'border-[#9b3f2c] bg-[#9b3f2c14] text-[#f1e9df]'
-                          : 'border-[#2a2421] text-[#a79f93] hover:border-[#4a3e38]')
-                      }
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
 
             {err && <div className="text-[12px] text-[#c96a52] mt-3">{err}</div>}
@@ -364,6 +408,366 @@ function CustomBuildScreen({
             </button>
           </>
         )}
+      </main>
+    </div>
+  );
+}
+
+function CustomTabsScreen({
+  state,
+  myTeam,
+  nickname,
+  round,
+  roundStartedAt,
+  roundDurationSec
+}: {
+  state: any;
+  myTeam: any;
+  nickname: string;
+  round: number;
+  roundStartedAt?: number | null;
+  roundDurationSec?: number;
+}) {
+  const clues: any[] = state.clues || [];
+  const [tab, setTab] = useState<'clues' | 'story'>('clues');
+  const [seenCount, setSeenCount] = useState(0);
+  const [now, setNow] = useState(Date.now());
+  const eliminatedIds: string[] = state.eliminatedTeamIds || [];
+  const iAmOut = !!myTeam && eliminatedIds.includes(myTeam.id);
+  const killerId = state.myKillerId;
+  const myCard = (state.scenario?.suspects || []).find((s: any) => s.name === nickname);
+  const iAmKiller = !!(killerId && myCard && myCard.id === killerId);
+
+  useEffect(() => {
+    setSeenCount(clues.length);
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const fresh = clues.length - seenCount;
+  const setup = state.customSetup;
+  const elapsed = roundStartedAt
+    ? Math.max(0, Math.floor(((roundDurationSec || 600) * 1000 - (now - roundStartedAt)) / 1000))
+    : null;
+
+  const switchTab = (t: 'clues' | 'story') => {
+    setTab(t);
+    if (t === 'clues') setSeenCount(clues.length);
+  };
+
+  return (
+    <div className="relative min-h-screen flex justify-center bg-[#0d0c0b] text-[#e8e2d6] overflow-hidden">
+      <RainCanvas opacity={0.35} lightning />
+      <main className="relative z-[2] w-full max-w-[480px] px-5 py-6">
+        <div className="flex items-center justify-between gap-3 mb-5">
+          <div className="flex gap-2">
+            <button
+              onClick={() => switchTab('clues')}
+              className={
+                'relative px-4 py-2 rounded-[10px] border text-[13px] font-semibold transition ' +
+                (tab === 'clues'
+                  ? 'border-[#9b3f2c] bg-[#9b3f2c14] text-[#f1e9df]'
+                  : 'border-[#2a2421] text-[#a79f93] hover:border-[#4a3e38]')
+              }
+            >
+              <i className="fa-solid fa-fingerprint mr-1.5" />
+              Улики
+              {fresh > 0 && tab !== 'clues' && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#9b3f2c] text-white text-[10px] font-bold grid place-items-center">
+                  {fresh}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => switchTab('story')}
+              className={
+                'px-4 py-2 rounded-[10px] border text-[13px] font-semibold transition ' +
+                (tab === 'story'
+                  ? 'border-[#9b3f2c] bg-[#9b3f2c14] text-[#f1e9df]'
+                  : 'border-[#2a2421] text-[#a79f93] hover:border-[#4a3e38]')
+              }
+            >
+              <i className="fa-solid fa-scroll mr-1.5" />
+              Сюжет
+            </button>
+          </div>
+          {elapsed !== null && (
+            <div className="font-['JetBrains_Mono'] text-[15px] text-[#d0664d] tabular-nums">
+              {fmt(elapsed)}
+            </div>
+          )}
+        </div>
+
+        {iAmKiller && (
+          <div className="mb-5 px-4 py-3 rounded-[10px] border border-[#b3261e66] bg-[#b3261e14] text-[12.5px] text-[#ff8a80] flex items-center gap-2.5">
+            <i className="fa-solid fa-skull" />
+            Вы — убийца. Отведите подозрения.
+          </div>
+        )}
+        {iAmOut && (
+          <div className="mb-5 px-4 py-3 rounded-[10px] border border-[#3a342a] bg-black/25 text-[12.5px] text-[#a79f93] flex items-center gap-2.5">
+            <i className="fa-solid fa-eye-slash" />
+            Вы выбыли — смотрите, что происходит, но голосовать больше нельзя.
+          </div>
+        )}
+
+        {tab === 'clues' ? (
+          clues.length === 0 ? (
+            <div className="text-center py-16 border border-dashed border-[#3a342a] rounded-2xl">
+              <i className="fa-solid fa-fingerprint text-[26px] text-[#6f675a] mb-3 block" />
+              <div className="text-[14px] text-[#8d837b]">Улик пока нет</div>
+              <div className="text-[12px] text-[#6f675a] mt-1">Ведущий вбросит их в ходе игры</div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {[...clues].reverse().map((c, i) => (
+                <div
+                  key={`${c.name}-${i}`}
+                  className="rounded-lg p-4 text-[#2a1c14] flex flex-col"
+                  style={{
+                    background:
+                      'repeating-linear-gradient(0deg, transparent 0 31px, rgba(80,50,30,.06) 31px 32px), radial-gradient(ellipse at 20% 0%, #fbf1dd, #f1e4cb 60%)',
+                    boxShadow: '0 12px 30px -18px rgba(0,0,0,.8)'
+                  }}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="w-8 h-8 rounded-lg bg-[#1d120c] text-[#efe3cc] grid place-items-center flex-none">
+                      <i className={`fa-solid ${c.icon || 'fa-bullhorn'} text-[13px]`} />
+                    </span>
+                    <b className="text-[14px] text-[#1d120c]">{c.name}</b>
+                    {i < fresh && (
+                      <span className="ml-auto text-[9px] tracking-[.14em] uppercase font-bold text-[#9b3f2c] border border-[#9b3f2c55] rounded px-1.5 py-0.5">
+                        новое
+                      </span>
+                    )}
+                  </div>
+                  <p className="m-0 font-mono text-[12.5px] leading-relaxed text-[#3a281c]">{c.desc}</p>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          <div className="rounded-2xl border border-[#2c2821] bg-[#16140f] p-5">
+            <div className="text-[11px] tracking-[.2em] uppercase text-[#c8964a] mb-3">
+              Обстоятельства дела
+            </div>
+            <p className="m-0 font-['Cormorant_Garamond'] text-[20px] leading-snug text-[#f1e9df] mb-4">
+              {setup?.type}. Жертва — {setup?.victim}. Место — {setup?.place}. Время — {setup?.time}. Орудие — {setup?.weapon}.
+            </p>
+            {setup?.details && (
+              <p className="m-0 text-[14px] text-[#a79f93] leading-relaxed">{setup.details}</p>
+            )}
+            <div className="mt-5 pt-4 border-t border-dashed border-[#3a342a] text-[13px] text-[#a79f93]">
+              <b className="text-[#e8e2d6] font-semibold">Раунд {round}</b> из {state.totalRounds}
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function CustomVotingScreen({
+  state,
+  myTeam,
+  nickname,
+  onVote,
+  votingStartedAt,
+  votingDurationSec
+}: {
+  state: any;
+  myTeam: any;
+  nickname: string;
+  onVote: (id: string) => void;
+  votingStartedAt?: number | null;
+  votingDurationSec?: number;
+}) {
+  const [pending, setPending] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const eliminatedIds: string[] = state.eliminatedTeamIds || [];
+  const iAmOut = !!myTeam && eliminatedIds.includes(myTeam.id);
+  const voted = !!myTeam?.vote;
+  const suspects: any[] = (state.scenario?.suspects || []).filter(
+    (s: any) => !eliminatedIds.includes(s.id)
+  );
+  const votersTotal = (state.teams || []).filter((t: any) => !eliminatedIds.includes(t.id)).length;
+  const votersDone = (state.teams || []).filter(
+    (t: any) => !eliminatedIds.includes(t.id) && t.vote
+  ).length;
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const left = votingStartedAt
+    ? Math.max(0, (votingDurationSec || 60) - Math.floor((now - votingStartedAt) / 1000))
+    : null;
+
+  const nameOf = (id: string) =>
+    (state.teams || []).find((t: any) => t.id === id)?.name || '—';
+
+  return (
+    <div className="relative min-h-screen bg-[#0d0c0b] text-[#ece4d4] overflow-hidden">
+      <RainCanvas opacity={0.3} />
+      <main className="relative z-[2] max-w-[480px] mx-auto px-5 pb-10">
+        <header className="flex justify-between items-center py-5">
+          <div>
+            <div className="font-['IBM_Plex_Mono'] text-[11px] tracking-[.18em] uppercase text-[#b3261e] mb-1">
+              Раунд {state.round} · {votersDone}/{votersTotal} проголосовали
+            </div>
+            <h1 className="font-['Cormorant_Garamond'] font-semibold text-[32px] leading-tight">
+              Кто убийца?
+            </h1>
+          </div>
+          {left !== null && (
+            <div className="font-['JetBrains_Mono'] text-[18px] text-[#d0664d] tabular-nums">
+              {fmt(left)}
+            </div>
+          )}
+        </header>
+
+        {iAmOut ? (
+          <div className="text-center py-14 border border-dashed border-[#3a342a] rounded-2xl">
+            <i className="fa-solid fa-eye-slash text-[26px] text-[#6f675a] mb-3 block" />
+            <div className="text-[15px] text-[#a79f93]">Вы выбыли и не можете голосовать</div>
+            <div className="text-[12.5px] text-[#6f675a] mt-1">Наблюдайте за голосованием на экране</div>
+          </div>
+        ) : voted ? (
+          <div className="text-center py-14">
+            <i className="fa-solid fa-circle-check text-[40px] text-[#3fb39c] mb-4" />
+            <div className="font-['Cormorant_Garamond'] text-[24px] text-[#f1e9df] mb-2">
+              Голос принят
+            </div>
+            <p className="text-[14px] text-[#a79f93] m-0">
+              Вы обвинили: <b className="text-[#d0664d]">{nameOf(myTeam.vote)}</b>
+            </p>
+          </div>
+        ) : pending ? (
+          <div className="rounded-2xl border border-[#2c2821] bg-[#16140f] p-6 text-center">
+            <div className="text-[11px] tracking-[.2em] uppercase text-[#b3261e] mb-3">
+              Подтверждение
+            </div>
+            <h2 className="font-['Cormorant_Garamond'] text-[28px] text-[#f1e9df] mb-2">
+              Обвинить {nameOf(pending)}?
+            </h2>
+            <p className="text-[13px] text-[#a79f93] mb-6">Изменить голос будет нельзя.</p>
+            <div className="flex gap-2.5 justify-center">
+              <button
+                onClick={() => setPending(null)}
+                className="px-5 py-3 rounded-[10px] border border-[#3a342a] text-[#a79f93] text-[14px]"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={() => onVote(pending)}
+                className="px-5 py-3 rounded-[10px] bg-[#9b3f2c] text-white text-[14px] font-semibold"
+              >
+                <i className="fa-solid fa-gavel mr-1.5" />
+                Подтвердить
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {suspects.map((s: any) => (
+              <article
+                key={s.id}
+                onClick={() => setPending(s.id)}
+                className="border border-[#2c2821] bg-[#16140f] rounded-xl p-5 cursor-pointer hover:border-[#b5553f] transition"
+              >
+                <div className="flex items-start gap-3.5">
+                  <div className="flex-none w-[46px] h-[46px] rounded-full grid place-items-center border border-[#3a342a] bg-[#0f0e0c]">
+                    <i className={`fa-solid ${s.icon || 'fa-user-secret'} text-[17px] text-[#a79d8b]`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-['Playfair_Display'] text-[22px] font-bold leading-tight">
+                      {s.name}
+                    </div>
+                    <div className="text-[13px] text-[#a79f93] mt-0.5">{s.role}</div>
+                  </div>
+                  <i className="fa-solid fa-gavel text-[#6f675a] mt-2" />
+                </div>
+                <p className="mt-3.5 font-['Playfair_Display'] italic text-[15px] leading-snug m-0">
+                  «{s.description}»
+                </p>
+              </article>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function CustomResultsScreen({
+  state,
+  myTeam,
+  nickname,
+  round
+}: {
+  state: any;
+  myTeam: any;
+  nickname: string;
+  round: number;
+}) {
+  const res = state.lastResult || {};
+  const elimId = res.eliminatedTeamId || res.eliminatedId;
+  const nameOf = (id: string) =>
+    (state.teams || []).find((t: any) => t.id === id)?.name ||
+    (state.scenario?.suspects || []).find((s: any) => s.id === id)?.name ||
+    '—';
+  const iAmOut = !!myTeam && (state.eliminatedTeamIds || []).includes(myTeam.id);
+
+  return (
+    <div className="relative min-h-screen flex justify-center bg-[#0e0d0c] text-[#e8e2d6] overflow-hidden">
+      <RainCanvas opacity={0.4} lightning />
+      <main className="relative z-[2] flex flex-col justify-center w-full max-w-[480px] px-6 py-10 text-center">
+        <div className="text-[12px] tracking-[.4em] uppercase text-[#8c7f74] mb-6">
+          Итоги раунда {round}
+        </div>
+
+        {res.tie ? (
+          <>
+            <h1 className="font-['Cormorant_Garamond'] font-semibold text-[34px] leading-tight text-[#f1e9df] mb-4">
+              Ничья
+            </h1>
+            <p className="text-[15px] text-[#a79f93]">Никто не выбыл — голоса разделились.</p>
+          </>
+        ) : elimId ? (
+          <>
+            <i className="fa-solid fa-user-slash text-[28px] text-[#b9a898] mb-5" />
+            <h1 className="font-['Cormorant_Garamond'] font-semibold text-[36px] leading-tight text-[#f1e9df] mb-3">
+              Выбыл{' '}
+              <em className="text-[#c7654d] italic">{nameOf(elimId)}</em>
+            </h1>
+            {iAmOut && (
+              <p className="font-['Cormorant_Garamond'] italic text-[17px] text-[#c7654d] mb-3">
+                Это вы. Дальше — только наблюдение.
+              </p>
+            )}
+            <p className="text-[14.5px] text-[#a79f93] max-w-[360px] mx-auto">
+              Он не был убийцей. Его имя выбывает из списка, голосовать он больше не может,
+              но видит всё, что происходит дальше.
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 className="font-['Cormorant_Garamond'] font-semibold text-[34px] leading-tight text-[#f1e9df] mb-4">
+              Раунд завершён
+            </h1>
+            <p className="text-[15px] text-[#a79f93]">Смотрите на главный экран.</p>
+          </>
+        )}
+
+        <div className="flex justify-center gap-2 mt-10">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#b0584a] animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-[#b0584a] animate-pulse" style={{ animationDelay: '.25s' }} />
+          <span className="w-1.5 h-1.5 rounded-full bg-[#b0584a] animate-pulse" style={{ animationDelay: '.5s' }} />
+        </div>
       </main>
     </div>
   );
@@ -460,6 +864,7 @@ export default function Play() {
   const [nickname, setNickname] = useState('');
   const [wantCaptain, setWantCaptain] = useState(true);
   const [isDemoSession, setIsDemoSession] = useState(false);
+  const [isCustomSession, setIsCustomSession] = useState(false);
   const [joined, setJoined] = useState(false);
   const [isCaptain, setIsCaptain] = useState(false);
   const [teamId, setTeamId] = useState<string | null>(null);
@@ -470,12 +875,48 @@ export default function Play() {
   const joinedRef = useRef(false);
   const [showTeamPicker, setShowTeamPicker] = useState(false);
   const [teamList, setTeamList] = useState<any[]>([]);
+  const [hostClaimed, setHostClaimed] = useState(false);
+
+  // Живое отслеживание состояния сессии до входа: как только кто-то занял
+  // роль ведущего (экран /screen/<код> или «Я ведущий» с телефона) — блокируем выбор.
+  useEffect(() => {
+    if (!code || !isCustomSession || joined) return;
+    const s = sock.current;
+    let watchJoined = false;
+
+    s.emit('session:watch', { code }, (res: any) => {
+      if (res?.state) {
+        watchJoined = true;
+        setHostClaimed(!!res.state.hostClaimed);
+        setState(res.state);
+      }
+    });
+
+    const onWatchState = (st: any) => {
+      if (joinedRef.current) return;
+      setHostClaimed(!!st?.hostClaimed);
+      setState(st);
+    };
+    s.on('state', onWatchState);
+
+    // Если роль ведущего заняли, пока экран открыт — уводим выбор на участника
+    if (hostClaimed && wantCaptain) setWantCaptain(false);
+
+    return () => {
+      s.off('state', onWatchState);
+      if (watchJoined) {
+        // при размонтировании/входе выходим из watch-комнаты
+        s.emit('session:unwatch', { code });
+      }
+    };
+  }, [code, isCustomSession, joined]);
 
   useEffect(() => {
     if (!code) return;
     api<any>(`/api/session/${code}`)
       .then((s: any) => {
         if (s?.isDemo) setIsDemoSession(true);
+        if (s?.isCustom) setIsCustomSession(true);
       })
       .catch(() => {});
   }, [code]);
@@ -555,11 +996,61 @@ export default function Play() {
     return () => clearTimeout(t);
   }, [code, joined]);
 
+  // Занять роль ведущего с телефона: атомарный host:claim на сервере.
+  // Второй конкурент получает already_claimed и остаётся участником.
+  function claimHost(done: (ok: boolean) => void) {
+    trace('host_claim_attempt', {});
+    sock.current.emit('host:claim', { code }, (res: any) => {
+      if (res?.error) {
+        trace('host_claim_failed', { error: res.error });
+        setHostClaimed(true);
+        done(false);
+        return;
+      }
+      trace('host_claim_success', {});
+      done(true);
+    });
+  }
+
   function join() {
     setErr('');
     const v = nickname.trim();
     if (v.length < 2) {
       setErr('Имя должно содержать минимум 2 символа');
+      return;
+    }
+
+    if (isCustomSession && !isDemoSession) {
+      if (joinedRef.current) return;
+      joinedRef.current = true;
+
+      localStorage.setItem('detective_name', v);
+      trace('join_attempt', { wantCaptain: false });
+
+      sock.current.emit(
+        'player:join',
+        { code, nickname: v, wantCaptain: false },
+        (res: any) => {
+          joinedRef.current = false;
+          if (res?.error) {
+            const msg =
+              res.error === 'duplicate_name'
+                ? 'Игрок с таким именем уже за столом — выберите другое имя'
+                : res.error === 'game_started'
+                ? 'Игра уже началась'
+                : res.error;
+            setErr(msg);
+            trace('join_failed', { error: res.error });
+            return;
+          }
+          setJoined(true);
+          setTeamId(res.teamId);
+          setIsCaptain(false);
+          setState(res.state);
+          if (res.teamId) localStorage.setItem(`team_${code}`, res.teamId);
+          trace('join_success', { teamId: res.teamId });
+        }
+      );
       return;
     }
 
@@ -689,8 +1180,11 @@ export default function Play() {
         wantCaptain={wantCaptain}
         setWantCaptain={setWantCaptain}
         onJoin={join}
+        onClaimHost={claimHost}
         err={err}
         isDemo={isDemoSession}
+        isCustomSession={isCustomSession}
+        hostClaimed={hostClaimed}
       />
     );
   }
@@ -739,16 +1233,46 @@ export default function Play() {
 
   if (phase === 'lobby') {
     return (
-      <LobbyScreen scenario={scenario} round={round} isCaptain={isCaptain} code={code} myTeam={myTeam} />
+      <LobbyScreen
+        scenario={scenario}
+        round={round}
+        isCaptain={isCaptain}
+        code={code}
+        myTeam={myTeam}
+        isCustom={state.isCustom}
+        playersCount={teams.length}
+      />
     );
   }
   if (phase === 'intro') {
     return <IntroScreen scenario={scenario} isCaptain={isCaptain} />;
   }
   if (phase === 'story') {
+    if (state.isCustom) {
+      return (
+        <CustomTabsScreen
+          state={state}
+          myTeam={myTeam}
+          nickname={nickname}
+          round={round}
+        />
+      );
+    }
     return <StoryScreen scenario={scenario} round={round} />;
   }
   if (phase === 'discussion') {
+    if (state.isCustom) {
+      return (
+        <CustomTabsScreen
+          state={state}
+          myTeam={myTeam}
+          nickname={nickname}
+          round={round}
+          roundStartedAt={state.roundStartedAt}
+          roundDurationSec={state.roundDurationSec}
+        />
+      );
+    }
     return (
       <DiscussionScreen
         scenario={scenario}
@@ -759,6 +1283,18 @@ export default function Play() {
     );
   }
   if (phase === 'voting') {
+    if (state.isCustom) {
+      return (
+        <CustomVotingScreen
+          state={state}
+          myTeam={myTeam}
+          nickname={nickname}
+          onVote={vote}
+          votingStartedAt={state.votingStartedAt}
+          votingDurationSec={state.votingDurationSec || 60}
+        />
+      );
+    }
     return (
       <VotingScreen
         scenario={scenario}
@@ -775,6 +1311,16 @@ export default function Play() {
     );
   }
   if (phase === 'results') {
+    if (state.isCustom) {
+      return (
+        <CustomResultsScreen
+          state={state}
+          myTeam={myTeam}
+          nickname={nickname}
+          round={round}
+        />
+      );
+    }
     return <ResultsScreen scenario={scenario} round={round} />;
   }
   if (phase === 'end' || phase === 'results-final') {
@@ -797,9 +1343,10 @@ export default function Play() {
 // ЭКРАН 1: ВХОД
 // ============================================================
 
-function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, onJoin, err, isDemo }: any) {
+function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, onJoin, onClaimHost, err, isDemo, isCustomSession, hostClaimed }: any) {
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [claimErr, setClaimErr] = useState(false);
 
   function copy() {
     const t = String(code || '').toUpperCase();
@@ -822,7 +1369,30 @@ function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, 
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (isDemo) setWantCaptain(true);
+    if (isDemo) {
+      setWantCaptain(true);
+      setBusy(true);
+      onJoin();
+      setTimeout(() => setBusy(false), 1200);
+      return;
+    }
+    if (isCustomSession && wantCaptain) {
+      if (hostClaimed || claimErr) {
+        setClaimErr(true);
+        return;
+      }
+      setBusy(true);
+      onClaimHost((ok: boolean) => {
+        setBusy(false);
+        if (ok) {
+          location.href = `/screen/${code}`;
+        } else {
+          setClaimErr(true);
+          setWantCaptain(false);
+        }
+      });
+      return;
+    }
     setBusy(true);
     onJoin();
     setTimeout(() => setBusy(false), 1200);
@@ -907,13 +1477,16 @@ function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, 
           {err && <div className="text-[12px] text-[#c96a52] mb-3">{err}</div>}
 
           {!isDemo && (
-            <div className="grid grid-cols-2 gap-2.5 mb-6">
+            <div className="grid grid-cols-2 gap-2.5 mb-2">
               <button
                 type="button"
                 onClick={() => setWantCaptain(true)}
+                disabled={(hostClaimed || claimErr) && isCustomSession}
                 className={
                   'text-left p-3.5 rounded-[10px] border transition ' +
-                  (wantCaptain
+                  ((hostClaimed || claimErr) && isCustomSession
+                    ? 'border-[#2a2421] bg-black/20 opacity-45 cursor-not-allowed'
+                    : wantCaptain
                     ? 'border-[#9b3f2c] bg-[#9b3f2c14]'
                     : 'border-[#2a2421] bg-black/20 hover:border-[#4a3e38]')
                 }
@@ -921,10 +1494,10 @@ function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, 
                 <div className="flex items-center gap-2 mb-1">
                   <i
                     className={`fa-solid fa-user-tie text-[13px] ${
-                      wantCaptain ? 'text-[#d0664d]' : 'text-[#8d837b]'
+                      (hostClaimed || claimErr) && isCustomSession ? 'text-[#5a534d]' : 'text-[#8d837b]'
                     }`}
                   />
-                  <b className="text-[14px] text-[#e9e2da]">Я капитан</b>
+                  <b className="text-[14px] text-[#e9e2da]">Я ведущий</b>
                 </div>
                 <div className="text-[11.5px] text-[#8d837b] leading-snug">Создам новый стол</div>
               </button>
@@ -951,12 +1524,27 @@ function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, 
             </div>
           )}
 
+          {((hostClaimed || claimErr) && isCustomSession && !isDemo) && (
+            <div className="text-[12px] text-[#a79f93] mb-5 -mt-1 flex items-center justify-center gap-1.5">
+              <i className="fa-solid fa-circle-info text-[11px] text-[#8d837b]" />
+              Ведущий уже есть — подключайтесь как участник
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={nickname.trim().length < 2 || busy}
             className="w-full h-[54px] rounded-[10px] bg-[#9b3f2c] text-[#f6ece4] text-[15px] font-semibold tracking-[.06em] flex items-center justify-center gap-2.5 hover:bg-[#b24a33] active:scale-[.98] disabled:bg-[#3a2621] disabled:text-[#7d6760] disabled:cursor-not-allowed transition"
           >
-            <span>{busy ? 'Подключаемся…' : isDemo || wantCaptain ? 'Создать стол' : 'Войти'}</span>
+            <span>
+              {busy
+                ? 'Подключаемся…'
+                : isCustomSession && wantCaptain && !isDemo
+                ? 'Открыть экран ведущего'
+                : isDemo || wantCaptain
+                ? 'Создать стол'
+                : 'Войти'}
+            </span>
             <i className={`fa-solid ${busy ? 'fa-circle-notch animate-spin' : 'fa-arrow-right'} text-sm`} />
           </button>
         </form>
@@ -974,7 +1562,7 @@ function JoinScreen({ code, nickname, setNickname, wantCaptain, setWantCaptain, 
 // ЭКРАН 2: ЛОББИ
 // ============================================================
 
-function LobbyScreen({ scenario, round, isCaptain, code, myTeam }: any) {
+function LobbyScreen({ scenario, round, isCaptain, code, myTeam, isCustom, playersCount }: any) {
   const sock = getSocket();
   const [showTransfer, setShowTransfer] = useState(false);
   const [pickId, setPickId] = useState<string | null>(null);
@@ -1109,11 +1697,13 @@ function LobbyScreen({ scenario, round, isCaptain, code, myTeam }: any) {
       <header className="absolute top-0 left-0 right-0 z-[3] flex justify-between items-center px-5 py-3.5 bg-gradient-to-b from-[#0b0a09e6] to-transparent text-[13px]">
         <div className="flex items-center gap-2 text-[#cfc7bb]">
           <i className="fa-solid fa-magnifying-glass text-[#c8964a] text-xs" />
-          {scenario.title}
+          {isCustom ? 'Ждём ведущего' : scenario.title}
         </div>
-        <div className="px-2.5 py-1 border border-white/10 rounded-full text-[#a39b8f] bg-[#0f0d0bb3]">
-          Раунд {round} / 4
-        </div>
+        {!isCustom && (
+          <div className="px-2.5 py-1 border border-white/10 rounded-full text-[#a39b8f] bg-[#0f0d0bb3]">
+            Раунд {round} / 4
+          </div>
+        )}
       </header>
 
       <main className="relative z-[2] flex items-center justify-center w-full px-5">
@@ -1129,11 +1719,18 @@ function LobbyScreen({ scenario, round, isCaptain, code, myTeam }: any) {
             Ждём старт
           </h1>
           <p className="text-[15px] leading-snug text-[#a9a195]">
-            {isCaptain
+            {isCustom
+              ? 'Ведущий заполняет дело. Дождитесь начала.'
+              : isCaptain
               ? 'Вы капитан команды. Дождитесь начала.'
               : 'Вы присоединились как зритель. Решение принимает капитан.'}
           </p>
-          {isCaptain && myTeam && (
+          {playersCount > 0 && (
+            <div className="mt-4 text-[13px] text-[#8d857a]">
+              Игроков за столом: {playersCount}
+            </div>
+          )}
+          {!isCustom && isCaptain && myTeam && (
             <button
               onClick={() => setShowTransfer(true)}
               className="mt-4 px-4 py-2 rounded-lg border border-[#3a342a] text-[12px] text-[#a79d8b] hover:text-[#e9e2da] hover:border-[#4a3e38] transition"
@@ -1143,7 +1740,7 @@ function LobbyScreen({ scenario, round, isCaptain, code, myTeam }: any) {
             </button>
           )}
           <div className="mt-5 pt-4 border-t border-white/[.06] flex justify-center items-center gap-2.5 text-[13px] text-[#8d857a]">
-            <i className="fa-solid fa-user-tie text-[#c8964a]" />
+            <i className={`fa-solid ${isCustom ? 'fa-user-secret' : 'fa-user-tie'} text-[#c8964a]`} />
             Игроки собираются
             <span className="flex gap-0.5">
               <span className="w-1 h-1 rounded-full bg-[#8d857a] animate-pulse" />
@@ -1154,7 +1751,7 @@ function LobbyScreen({ scenario, round, isCaptain, code, myTeam }: any) {
         </div>
       </main>
 
-      {showTransfer && myTeam && (
+      {!isCustom && showTransfer && myTeam && (
         <div
           className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
           onClick={e => {
