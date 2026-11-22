@@ -34,7 +34,6 @@ function broadcastState(io: Server, code: string, ns: E.GameState) {
   const playPub = E.publicState(ns, { revealSolution: isReveal });
   io.to(`screen:${code}`).emit('state', screenPub);
   io.to(`play:${code}`).emit('state', playPub);
-  io.to(`watch:${code}`).emit('state', playPub);
 }
 
 async function persistState(code: string, ns: E.GameState) {
@@ -153,24 +152,9 @@ export function attachSocket(io: Server) {
     // ============================================================
 
     socket.on('screen:join', async ({ code }: { code: string }, cb?: any) => {
-      let s = sessions.get(code);
-      if (!s) {
-        const dbS0 = await prisma.gameSession.findUnique({ where: { code } });
-        if (dbS0 && dbS0.state) {
-          s = dbS0.state as unknown as E.GameState;
-          sessions.set(code, s);
-        }
-      }
+      const s = sessions.get(code);
       if (!s) return cb?.({ error: 'not_found' });
       socket.join(`screen:${code}`);
-
-      let claimed = false;
-      if (s.isCustom && !s.hostClaimed) {
-        s.hostClaimed = true;
-        claimed = true;
-        await persistState(code, s);
-        broadcastState(io, code, s);
-      }
 
       const dbS = await prisma.gameSession.findUnique({ where: { code } });
       if (dbS) {
@@ -179,7 +163,6 @@ export function attachSocket(io: Server) {
           actor: socket.id,
           payload: {
             socketId: socket.id,
-            hostClaimedNow: claimed,
             userAgent: (socket.handshake.headers['user-agent'] || '').slice(0, 120),
             ip: socket.handshake.address
           }
@@ -189,55 +172,9 @@ export function attachSocket(io: Server) {
       cb?.({ state: E.publicState(s, { revealSolution: s.phase === 'end' }) });
     });
 
-    socket.on('host:claim', async ({ code }: { code: string }, cb?: any) => {
-      let s = sessions.get(code);
-      if (!s) {
-        const dbS0 = await prisma.gameSession.findUnique({ where: { code } });
-        if (dbS0 && dbS0.state) {
-          s = dbS0.state as unknown as E.GameState;
-          sessions.set(code, s);
-        }
-      }
-      if (!s) return cb?.({ error: 'not_found' });
-      if (!s.isCustom) return cb?.({ error: 'not_custom' });
-
-      if (s.hostClaimed) {
-        return cb?.({ error: 'already_claimed' });
-      }
-
-      s.hostClaimed = true;
-      await persistState(code, s);
-      broadcastState(io, code, s);
-
-      const dbS = await prisma.gameSession.findUnique({ where: { code } });
-      if (dbS) {
-        await log({
-          sessionId: dbS.id, code, event: 'host:claim', actor: socket.id,
-          payload: { socketId: socket.id }
-        });
-      }
-
-      cb?.({ ok: true, state: E.publicState(s, { revealSolution: false }) });
-    });
-
-    socket.on('session:watch', async ({ code }: { code: string }, cb?: any) => {
-      let s = sessions.get(code);
-      if (!s) {
-        const dbS0 = await prisma.gameSession.findUnique({ where: { code } });
-        if (dbS0 && dbS0.state) {
-          s = dbS0.state as unknown as E.GameState;
-          sessions.set(code, s);
-        }
-      }
-      if (!s) return cb?.({ error: 'not_found' });
-      socket.join(`watch:${code}`);
-
-      cb?.({ state: E.publicState(s, { revealSolution: false }) });
-    });
-
-    socket.on('session:unwatch', ({ code }: { code: string }) => {
-      socket.leave(`watch:${code}`);
-    });
+    // ============================================================
+    // PLAYER: JOIN
+    // ============================================================
 
     socket.on('player:join', async (payload: {
       code: string;
@@ -247,14 +184,7 @@ export function attachSocket(io: Server) {
       targetTeamId?: string;
     }, cb?: any) => {
       const { code, nickname, wantCaptain, reconnectTeamId } = payload;
-      let s = sessions.get(code);
-      if (!s) {
-        const dbS0 = await prisma.gameSession.findUnique({ where: { code } });
-        if (dbS0 && dbS0.state) {
-          s = dbS0.state as unknown as E.GameState;
-          sessions.set(code, s);
-        }
-      }
+      const s = sessions.get(code);
       if (!s) return cb?.({ error: 'not_found' });
       if (!nickname || !nickname.trim()) return cb?.({ error: 'no_name' });
 
@@ -289,47 +219,7 @@ export function attachSocket(io: Server) {
         }
       }
 
-      if (s.isCustom) {
-        const normalized = nickname.trim().toLowerCase();
-        const candidates = s.teams.filter(
-          t => t.captainName?.trim().toLowerCase() === normalized
-        );
-        const mine =
-          candidates.find(t => t.suspectId) ||
-          candidates.find(t => (s.eliminatedTeamIds || []).includes(t.id)) ||
-          candidates[0];
-        if (mine) {
-          mine.captainId = socket.id;
-          if (!mine.players) mine.players = [];
-          mine.players = mine.players.filter(p => p.socketId !== socket.id);
-          mine.players.push({
-            socketId: socket.id,
-            nickname: nickname.trim(),
-            joinedAt: Date.now()
-          });
-          teamId = mine.id;
-          isCaptain = false;
-        } else if (s.phase === 'lobby' || s.phase === 'build') {
-          const id = Math.random().toString(36).slice(2, 10);
-          s.teams.push({
-            id,
-            name: nickname.trim(),
-            score: 0,
-            captainId: socket.id,
-            captainName: nickname.trim(),
-            vote: null,
-            joinedAt: Date.now(),
-            roundScores: [],
-            players: [
-              { socketId: socket.id, nickname: nickname.trim(), joinedAt: Date.now() }
-            ]
-          });
-          teamId = id;
-          isCaptain = false;
-        } else {
-          return cb?.({ error: 'game_started' });
-        }
-      } else if (wantCaptain) {
+      if (wantCaptain) {
         // Защита от дубликата названия стола
         const wantedName = nickname.trim();
         const normalized = wantedName.toLowerCase();
@@ -559,9 +449,7 @@ export function attachSocket(io: Server) {
     ) => {
       const s = sessions.get(code);
       if (!s || !s.isCustom) return cb?.({ error: 'not_custom' });
-      if (s.phase !== 'discussion' && s.phase !== 'story' && s.phase !== 'reveal') {
-        return cb?.({ error: 'not_discussion' });
-      }
+      if (s.phase !== 'discussion') return cb?.({ error: 'not_discussion' });
       if (!clue || !clue.desc || !clue.desc.trim()) return cb?.({ error: 'empty' });
 
       const sc = E.scenarioOf(s);
@@ -627,12 +515,10 @@ export function attachSocket(io: Server) {
     socket.on('team:vote', ({ code, suspectId }: { code: string; suspectId: string }, cb?: any) => {
       const s = sessions.get(code);
       if (!s || s.phase !== 'voting') return cb?.({ error: 'not_voting' });
-      const { teamId, nickname } = (socket.data as any) || {};
-      if (!teamId) return cb?.({ error: 'no_team' });
+      const { teamId, isCaptain, nickname } = (socket.data as any) || {};
+      if (!isCaptain) return cb?.({ error: 'not_captain' });
       const team = s.teams.find(t => t.id === teamId);
       if (!team) return cb?.({ error: 'no_team' });
-      if ((s.eliminatedTeamIds || []).includes(teamId)) return cb?.({ error: 'eliminated' });
-      if (!s.isCustom && !(socket.data as any).isCaptain) return cb?.({ error: 'not_captain' });
       team.vote = suspectId;
 
       const roundStartMs = s.roundStartedAt || 0;
@@ -819,15 +705,9 @@ export function attachSocket(io: Server) {
 
       if (!s.customCards) s.customCards = [];
 
-      const ownerName =
-        nickname && card && (card as any).ownerName
-          ? String((card as any).ownerName).slice(0, 24)
-          : (nickname ?? 'Unknown');
-      const targetName = (card as any)?.ownerName ? ownerName : (nickname ?? 'Unknown');
-
       const newCard: E.CustomPlayerCard = {
         teamId,
-        name: targetName,
+        name: nickname ?? 'Unknown',
         role: String(card?.role || '').slice(0, 40),
         hook: String(card?.hook || '').slice(0, 90),
         motive: String(card?.motive || '').slice(0, 140),
@@ -836,7 +716,7 @@ export function attachSocket(io: Server) {
         partner: String(card?.partner || 'Один').slice(0, 30)
       };
 
-      const idx = s.customCards.findIndex(c => c.teamId === teamId && c.name === newCard.name);
+      const idx = s.customCards.findIndex(c => c.teamId === teamId);
       if (idx >= 0) s.customCards[idx] = newCard;
       else s.customCards.push(newCard);
 
@@ -844,38 +724,13 @@ export function attachSocket(io: Server) {
       if (dbS) {
         await log({
           sessionId: dbS.id, code, event: 'custom:submit-card', actor: nickname ?? teamId,
-          payload: { teamId, cardName: newCard.name, totalCards: s.customCards.length }
+          payload: { teamId, totalCards: s.customCards.length }
         });
       }
 
       await persistState(code, s);
       broadcastState(io, code, s);
       cb?.({ ok: true, totalCards: s.customCards.length });
-    });
-
-    socket.on('custom:set-card', async (
-      { code, name, patch }: { code: string; name: string; patch: Partial<E.CustomPlayerCard> },
-      cb?: any
-    ) => {
-      const s = sessions.get(code);
-      if (!s || !s.isCustom || s.phase !== 'build') return cb?.({ error: 'not_build' });
-
-      if (!s.customCards) s.customCards = [];
-      const idx = s.customCards.findIndex(c => c.name === name);
-      if (idx < 0) return cb?.({ error: 'card_not_found' });
-      s.customCards[idx] = { ...s.customCards[idx], ...patch } as E.CustomPlayerCard;
-
-      const dbS = await prisma.gameSession.findUnique({ where: { code } });
-      if (dbS) {
-        await log({
-          sessionId: dbS.id, code, event: 'custom:set-card', actor: 'host',
-          payload: { name, patch }
-        });
-      }
-
-      await persistState(code, s);
-      broadcastState(io, code, s);
-      cb?.({ ok: true });
     });
 
     socket.on('custom:start', async ({ code }: { code: string }, cb?: any) => {

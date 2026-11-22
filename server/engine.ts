@@ -28,7 +28,6 @@ export type TeamState = {
   joinedAt: number;
   roundScores: number[];
   players: TeamPlayer[];
-  suspectId?: string | null;
 };
 
 // ============================================================
@@ -66,7 +65,6 @@ export type GameState = {
   revealedClues: number[];
   teams: TeamState[];
   eliminatedSuspects: string[];
-  eliminatedTeamIds?: string[];
   lastResult: any | null;
   roundStartedAt: number | null;
   roundDurationSec: number;
@@ -80,7 +78,6 @@ export type GameState = {
   customSetup?: CustomSetup;
   customCards?: CustomPlayerCard[];
   customGenerated?: boolean;
-  hostClaimed?: boolean;
 };
 
 export const ROUND_SECONDS = 600;
@@ -127,7 +124,6 @@ export function createInitialState(
     revealedClues: [],
     teams: [],
     eliminatedSuspects: [],
-    eliminatedTeamIds: [],
     lastResult: null,
     roundStartedAt: null,
     roundDurationSec: opts?.roundDurationSec ?? ROUND_SECONDS,
@@ -157,6 +153,7 @@ function pickElimination(s: GameState): string | null {
   const nonKiller = alive.filter(x => x.id !== killerId);
   if (nonKiller.length <= 1) return null;
 
+  // ===== Строгий порядок, если задан в сценарии =====
   if (sc.eliminationOrder && sc.eliminationOrder.length > 0) {
     const next = sc.eliminationOrder.find(id => !s.eliminatedSuspects.includes(id));
     if (next) {
@@ -166,6 +163,7 @@ function pickElimination(s: GameState): string | null {
     return null;
   }
 
+  // ===== Иначе — по голосам (используется в custom) =====
   const votes: Record<string, number> = {};
   for (const t of s.teams) {
     if (t.vote) votes[t.vote] = (votes[t.vote] || 0) + 1;
@@ -176,19 +174,6 @@ function pickElimination(s: GameState): string | null {
   const top = sorted.filter(x => (votes[x.id] || 0) === topVotes);
 
   return top[Math.floor(Math.random() * top.length)].id;
-}
-
-export function pickPlayerElimination(s: GameState): string | null {
-  const votes: Record<string, number> = {};
-  const elim = s.eliminatedTeamIds || [];
-  for (const t of s.teams) {
-    if (t.vote && !elim.includes(t.id)) votes[t.vote] = (votes[t.vote] || 0) + 1;
-  }
-  const entries = Object.entries(votes).filter(([id]) => id);
-  if (entries.length === 0) return null;
-  const sorted = entries.sort((a, b) => b[1] - a[1]);
-  if (sorted.length > 1 && sorted[0][1] === sorted[1][1]) return null;
-  return sorted[0][0];
 }
 
 // ============================================================
@@ -243,12 +228,6 @@ export function generateCustomScenario(s: GameState): Scenario {
     secret: '',
     isGuilty: i === killerIdx
   }));
-
-  for (const t of s.teams) {
-    const card = cards.find(c => c.teamId === t.id);
-    const idx = card ? cards.indexOf(card) : -1;
-    t.suspectId = idx >= 0 ? `c${idx}` : null;
-  }
 
   // 3. Улики
   const clues: any[] = [];
@@ -407,13 +386,9 @@ export function nextPhase(s: GameState): GameState {
       break;
 
     case 'voting': {
-      const votes: Record<string, number> = {};
-      const elim = ns.eliminatedTeamIds || [];
+      // Штраф за пропуск голосования
       ns.teams.forEach(t => {
-        if (t.vote && !elim.includes(t.id)) votes[t.vote] = (votes[t.vote] || 0) + 1;
-      });
-      ns.teams.forEach(t => {
-        if (!t.vote && !elim.includes(t.id)) {
+        if (!t.vote) {
           t.score -= 100;
           if (!t.roundScores) t.roundScores = [];
           while (t.roundScores.length < ns.totalRounds) t.roundScores.push(0);
@@ -432,7 +407,7 @@ export function nextPhase(s: GameState): GameState {
         const correct = t.vote === killerId;
         const isFinal = ns.round >= ns.totalRounds;
         let roundScore = 0;
-        if (correct && !elim.includes(t.id)) {
+        if (correct) {
           roundScore = isFinal ? 500 : 100;
           t.score += roundScore;
           result.correctTeamIds.push(t.id);
@@ -442,7 +417,7 @@ export function nextPhase(s: GameState): GameState {
         if (t.vote !== null) {
           t.roundScores[ns.round - 1] = roundScore;
         }
-        result.perTeam.push({ teamId: t.id, vote: t.vote, correct, eliminated: elim.includes(t.id) });
+        result.perTeam.push({ teamId: t.id, vote: t.vote, correct });
       });
 
       ns.votingStartedAt = null;
@@ -455,26 +430,6 @@ export function nextPhase(s: GameState): GameState {
       }
 
       if (ns.round < ns.totalRounds) {
-        if (s.isCustom) {
-          const elimSuspectId = pickPlayerElimination(ns);
-          if (elimSuspectId && elimSuspectId !== killerId) {
-            const elimTeam = ns.teams.find(t => t.suspectId === elimSuspectId);
-            if (elimTeam && !ns.eliminatedTeamIds) ns.eliminatedTeamIds = [];
-            if (elimTeam && !ns.eliminatedTeamIds!.includes(elimTeam.id)) {
-              ns.eliminatedTeamIds!.push(elimTeam.id);
-            }
-            ns.eliminatedSuspects.push(elimSuspectId);
-            result.eliminatedId = elimSuspectId;
-            result.eliminatedTeamId = elimTeam?.id ?? null;
-            result.eliminatedName = sc.suspects.find(x => x.id === elimSuspectId)?.name ?? null;
-          } else {
-            result.tie = true;
-          }
-          result.voteCounts = votes;
-          ns.phase = 'results';
-          ns.lastResult = result;
-          break;
-        }
         const elimId = pickElimination(ns);
         if (elimId) {
           ns.eliminatedSuspects.push(elimId);
@@ -612,7 +567,6 @@ export function publicState(s: GameState, opts: { revealSolution: boolean }) {
       )
       : CLUE_TIMES_SEC,
     eliminatedSuspects: s.eliminatedSuspects,
-    eliminatedTeamIds: s.eliminatedTeamIds || [],
     lastResult: s.lastResult,
 
     // ===== конструктор =====
@@ -620,7 +574,6 @@ export function publicState(s: GameState, opts: { revealSolution: boolean }) {
     customCardsCount: s.customCards?.length ?? 0,
     customGenerated: s.customGenerated,
     customSubmittedTeamIds: s.customCards?.map(c => c.teamId) ?? [],
-    hostClaimed: s.isCustom ? !!s.hostClaimed : undefined,
 
       // ===== НОВОЕ: раскрываем killerId в фазе reveal =====
     myKillerId:

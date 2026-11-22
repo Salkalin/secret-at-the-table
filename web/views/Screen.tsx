@@ -129,73 +129,55 @@ function CustomBuilderScreen({
             Конструктор · Сбор карточек
           </div>
           <h1 className="font-serif text-4xl text-text font-semibold m-0">
-            Игроки дают показания
+            Игроки заполняют карточки
           </h1>
           <p className="text-muted text-[14px] mt-2">
             Раунды: {state.totalRounds} · Время: {Math.round((state.roundDurationSec || 600) / 60)} мин
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-6 items-start">
-          <div>
-            <div
-              className="rounded-[18px] border border-line p-6 mb-6"
-              style={{ background: 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))' }}
-            >
-              <div className="flex justify-between items-baseline mb-4">
-                <div className="text-[13px] uppercase tracking-wider text-muted">Прогресс</div>
-                <div className="font-serif text-2xl text-text">
-                  <b className="text-accent">{cardsCount}</b> / {totalTeams}
-                </div>
-              </div>
-              <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-accent transition-all duration-500"
-                  style={{ width: `${totalTeams > 0 ? (cardsCount / totalTeams) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="rounded-[18px] border border-line p-6 mb-6">
-              <div className="text-[13px] uppercase tracking-wider text-muted mb-3">Игроки</div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {(state.teams || []).map((t: any) => {
-                  const submitted = submittedIds.includes(t.id);
-                  return (
-                    <div
-                      key={t.id}
-                      className="flex items-center justify-between p-3 rounded-xl border border-line bg-white/[.02]"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-text font-semibold truncate">{t.name}</div>
-                        <div className="text-[12px] text-muted">
-                          {submitted ? 'карточка готова' : 'заполняет…'}
-                        </div>
-                      </div>
-                      <i
-                        className={`fa-solid ${
-                          submitted ? 'fa-circle-check text-accent' : 'fa-hourglass-half text-muted'
-                        } text-lg`}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
+        <div
+          className="rounded-[18px] border border-line p-6 mb-6"
+          style={{ background: 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))' }}
+        >
+          <div className="flex justify-between items-baseline mb-4">
+            <div className="text-[13px] uppercase tracking-wider text-muted">Прогресс</div>
+            <div className="font-serif text-2xl text-text">
+              <b className="text-accent">{cardsCount}</b> / {totalTeams}
             </div>
           </div>
+          <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-accent transition-all duration-500"
+              style={{ width: `${totalTeams > 0 ? (cardsCount / totalTeams) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
 
-          <div
-            className="rounded-[18px] border border-line p-5 text-center"
-            style={{ background: 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))' }}
-          >
-            <div className="text-[11px] uppercase tracking-wider text-muted mb-3">
-              Подключиться к игре
-            </div>
-            <div id="qr-container-build" className="mx-auto bg-white p-2 rounded-lg w-fit mb-3" />
-            <div className="font-serif text-2xl text-accent tracking-[.2em] mb-2">{code}</div>
-            <p className="text-[12px] text-muted leading-snug m-0">
-              Наведите камеру на QR и выберите «Я участник»
-            </p>
+        <div className="rounded-[18px] border border-line p-6 mb-6">
+          <div className="text-[13px] uppercase tracking-wider text-muted mb-3">Команды</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(state.teams || []).map((t: any) => {
+              const submitted = submittedIds.includes(t.id);
+              return (
+                <div
+                  key={t.id}
+                  className="flex items-center justify-between p-3 rounded-xl border border-line bg-white/[.02]"
+                >
+                  <div className="min-w-0">
+                    <div className="text-text font-semibold truncate">{t.name}</div>
+                    <div className="text-[12px] text-muted">
+                      Капитан: {t.captainName || '—'} · {(t.players || []).length} в команде
+                    </div>
+                  </div>
+                  <i
+                    className={`fa-solid ${
+                      submitted ? 'fa-circle-check text-accent' : 'fa-hourglass-half text-muted'
+                    } text-lg`}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -205,7 +187,7 @@ function CustomBuilderScreen({
             disabled={busy || cardsCount < 2}
             className="px-8 py-4 rounded-xl bg-accent text-white font-bold text-[16px] disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {busy ? 'Запуск…' : `Приступить (${cardsCount})`}
+            {busy ? 'Запуск…' : `Начать игру (${cardsCount})`}
             <i className="fa-solid fa-play ml-2.5" />
           </button>
         </div>
@@ -407,7 +389,7 @@ function CustomBuilderScreen({
             style={{ background: 'linear-gradient(180deg, rgba(30,19,15,.9), rgba(16,10,8,.92))' }}
           >
             <div className="text-[12px] uppercase tracking-wider text-muted mb-2">
-              Игроки ({totalTeams}/8)
+              Команды: {totalTeams}
             </div>
             <div className="flex flex-wrap gap-1.5 mb-4">
               {totalTeams === 0 && (
@@ -428,7 +410,7 @@ function CustomBuilderScreen({
               disabled={busy || !ready || totalTeams === 0}
               className="w-full py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {busy ? 'Переход…' : 'Приступить'}
+              {busy ? 'Переход…' : 'Начать сбор карточек'}
               <i className="fa-solid fa-arrow-right ml-2" />
             </button>
             {!ready && (
@@ -457,8 +439,6 @@ function CustomRevealScreen({
   advance: () => void;
   busy: boolean;
 }) {
-  const suspects: any[] = state.scenario?.suspects || [];
-
   return (
     <div className="min-h-screen p-6 md:p-8 max-w-[800px] mx-auto flex flex-col justify-center">
       <div className="text-center mb-8">
@@ -468,23 +448,23 @@ function CustomRevealScreen({
         <h1 className="font-serif text-4xl text-text font-semibold m-0">Каждый смотрит свою роль</h1>
         <p className="text-muted text-[14px] mt-3 max-w-[460px] mx-auto">
           Игроки смотрят на телефоны: один из них — убийца. Когда все посмотрели, нажмите
-          «Приступить».
+          «Начать игру».
         </p>
       </div>
 
       <div className="rounded-[18px] border border-line p-6 mb-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {suspects.map((s: any) => (
+          {(state.teams || []).map((t: any) => (
             <div
-              key={s.id}
+              key={t.id}
               className="flex items-center gap-3 p-3 rounded-xl border border-line bg-white/[.02]"
             >
               <span className="w-10 h-10 rounded-full border border-line bg-black/30 grid place-items-center text-accent">
                 <i className="fa-solid fa-user-secret" />
               </span>
               <div className="min-w-0">
-                <div className="text-text font-semibold truncate">{s.name}</div>
-                <div className="text-[12px] text-muted">{s.role}</div>
+                <div className="text-text font-semibold truncate">{t.name}</div>
+                <div className="text-[12px] text-muted">{(t.players || []).length} в команде</div>
               </div>
             </div>
           ))}
@@ -497,7 +477,7 @@ function CustomRevealScreen({
           disabled={busy}
           className="px-8 py-4 rounded-xl bg-accent text-white font-bold text-[16px] disabled:opacity-40"
         >
-          {busy ? 'Запуск…' : 'Приступить'}
+          {busy ? 'Запуск…' : 'Все посмотрели — начать игру'}
           <i className="fa-solid fa-play ml-2.5" />
         </button>
       </div>
@@ -515,90 +495,6 @@ const CLUE_ICONS = [
   { v: 'fa-key', l: 'Ключ' },
   { v: 'fa-flask', l: 'Экспертиза' },
   { v: 'fa-comment', l: 'Показание' }
-];
-
-const CLUE_LIBRARY: { t: string; ic: string; frame?: boolean; items: string[] }[] = [
-  {
-    t: 'Физические улики',
-    ic: 'fa-magnifying-glass',
-    items: [
-      'На кухне нашли окровавленный нож, но он не из этого ресторана.',
-      'Под столом в VIP-зоне нашли диктофон с записью.',
-      'В мусорке у чёрного хода обнаружен окровавленный фартук.',
-      'В кассе не хватает крупной суммы денег.',
-      'На месте преступления нашли окурок с помадой.',
-      'В холодильнике нашли бутылку с подозрительной жидкостью.',
-      'На полу найдена пуговица от дорогого пиджака.',
-      'В подсобке нашли разбитый телефон жертвы.',
-      'В бокале жертвы обнаружен сильный яд.',
-      'На ручке двери кухни остался кровавый отпечаток пальца.'
-    ]
-  },
-  {
-    t: 'Свидетели',
-    ic: 'fa-eye',
-    items: [
-      'Охранник видел, как кто-то выходил из кухни в 23:05, но лица не разглядел.',
-      'Уборщица слышала громкую ссору за 5 минут до убийства.',
-      'Посетитель видел, как кто-то пытался спрятать окровавленную салфетку.',
-      'Бармен слышал звон разбитого стекла в подвале.',
-      'Кто-то стёр записи с камер видеонаблюдения за последний час.',
-      'Соседний дом сообщил, что видел убегающего человека в чёрном.',
-      'Официант заметил, что один из гостей не пил и был очень бледным.',
-      'Свидетель видел, как кто-то искал что-то на кухне до убийства.',
-      'Кто-то пытался подкупить полицию до её приезда.',
-      'В туалете нашли окровавленные бумажные полотенца.'
-    ]
-  },
-  {
-    t: 'Подставы',
-    ic: 'fa-masks-theater',
-    frame: true,
-    items: [
-      'В кармане [Имя] нашли ключ от подсобки.',
-      'На камерах видно, как [Имя] выходил из кухни в 23:10.',
-      'В шкафчике [Имя] нашли записку с угрозами.',
-      'На телефоне жертвы последним был звонок от [Имя].',
-      'Под ногтями жертвы нашли кожу, похожую на кожу [Имя].',
-      'В бокале [Имя] нашли снотворное.',
-      '[Имя] пытался тайно вынести мусор через чёрный ход.',
-      'В сумке [Имя] нашли крупную сумму денег.',
-      '[Имя] сегодня утром купил билет в один конец.',
-      'На месте преступления нашли вещь, принадлежащую [Имя].'
-    ]
-  },
-  {
-    t: 'Форс-мажоры',
-    ic: 'fa-tornado',
-    items: [
-      'Отключили свет на 10 минут. Кто-то мог пробраться незамеченным.',
-      'В ресторан ворвалась толпа веганов с протестом. Все отвлеклись.',
-      'Сработала пожарная сигнализация. Люди бегали в панике.',
-      'Шеф внезапно уехал в больницу. Кто-то занял его место.',
-      'На кухне случился локальный пожар. Кто-то заметал следы.',
-      'В подсобке нашли второй труп. Крыса или кто-то ещё?',
-      'Приехал известный ресторатор. Все старались показать себя.',
-      'Ограбили кассу. Пропали деньги, но кто это сделал?',
-      'Все напитки в баре оказались отравлены. Не повод ли для паники?',
-      'Один из гостей оказался полицейским под прикрытием.'
-    ]
-  },
-  {
-    t: 'Игра на нервах',
-    ic: 'fa-brain',
-    items: [
-      'Среди вас есть свидетель, который видел всё, но боится говорить.',
-      'Убийца оставил на теле жертвы знак, который может понять только один человек.',
-      'Вы нашли дневник жертвы, в котором она шантажировала кого-то из вас.',
-      'В ресторане есть потайная комната, о которой знал только убийца.',
-      'Жертва была должна крупную сумму одному из вас.',
-      'На теле жертвы нашли след от укуса.',
-      'Один из вас пришёл сюда под чужим именем.',
-      'Полиция нашла отпечатки пальцев, но они не совпадают ни с кем из вас.',
-      'У жертвы в кармане нашли билет на самолёт на сегодняшний вечер.',
-      'На телефоне жертвы осталось неотправленное сообщение с именем.'
-    ]
-  }
 ];
 
 function InjectClueModal({
@@ -731,435 +627,6 @@ function InjectClueModal({
 }
 
 // ============================================================
-// HOST: ПАНЕЛЬ УБИЙЦЫ + КОНСТРУКТОР УЛИК
-// ============================================================
-
-function HostMasterPanel({
-  state,
-  onInject,
-  hidden,
-  onToggle
-}: {
-  state: any;
-  onInject: (clue: { name: string; desc: string; icon: string; type: string }) => void;
-  hidden: boolean;
-  onToggle: () => void;
-}) {
-  const suspects: any[] = state.scenario?.suspects || [];
-  const killerId = state.myKillerId;
-  const killer = suspects.find((s: any) => s.id === killerId);
-  const [cat, setCat] = useState(0);
-  const [deal, setDeal] = useState<Record<number, number[]>>({});
-
-  const names = suspects.map((s: any) => s.name);
-  const activeCat = CLUE_LIBRARY[cat] || CLUE_LIBRARY[0];
-
-  const handFor = (ci: number): number[] => {
-    if (deal[ci]) return deal[ci];
-    const total = activeCatItems(ci).length;
-    const idx = Array.from({ length: Math.min(5, total) }, (_, i) => i);
-    return idx;
-  };
-
-  const activeCatItems = (ci: number) => (CLUE_LIBRARY[ci] || CLUE_LIBRARY[0]).items;
-
-  const redeal = (ci: number) => {
-    const total = activeCatItems(ci).length;
-    const pool = Array.from({ length: total }, (_, i) => i);
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    setDeal(d => ({ ...d, [ci]: pool.slice(0, Math.min(5, total)) }));
-  };
-
-  const buildClue = (text: string) => {
-    if (!text.trim()) return;
-    let desc = text;
-    if (activeCat.frame) {
-      const name = names[Math.floor(Math.random() * Math.max(1, names.length))];
-      desc = desc.replace(/\[Имя\]/g, name || 'кого-то');
-    }
-    onInject({
-      name: activeCat.t,
-      desc: desc.slice(0, 300),
-      icon: activeCat.ic,
-      type: activeCat.t.toLowerCase()
-    });
-  };
-
-  if (hidden) {
-    return (
-      <div className="rounded-[18px] border border-dashed border-accent/40 p-4 mb-8 flex items-center justify-between gap-4 flex-wrap">
-        <span className="text-[13.5px] text-muted flex items-center gap-2.5">
-          <i className="fa-solid fa-eye-slash text-accent" />
-          Панель ведущего скрыта от зала
-        </span>
-        <button
-          onClick={onToggle}
-          className="px-4 py-2 rounded-lg border border-line bg-panel text-muted hover:bg-panel2 text-[13px]"
-        >
-          <i className="fa-solid fa-eye mr-1.5" />
-          Показать
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="rounded-[18px] border border-[#7a2d1f] p-6 mb-8"
-      style={{ background: 'linear-gradient(180deg, rgba(46,17,12,.9), rgba(24,10,8,.94))' }}
-    >
-      <div className="flex justify-between items-center gap-4 mb-5 flex-wrap">
-        <h3 className="font-serif text-[24px] text-text flex items-center gap-3 m-0">
-          <i className="fa-solid fa-user-shield text-[#e0603a]" />
-          Только для ведущего
-        </h3>
-        <button
-          onClick={onToggle}
-          className="px-4 py-2 rounded-lg border border-[#4a2222] text-[#c99] text-[13px] hover:bg-[#2a1212]"
-        >
-          <i className="fa-solid fa-eye-slash mr-1.5" />
-          Скрыть
-        </button>
-      </div>
-
-      {killer && (
-        <div className="mb-6">
-          <div className="font-serif text-[clamp(28px,3.4vw,44px)] leading-tight text-text">
-            Убийца — <span className="text-[#e0603a]">{killer.name}</span>
-          </div>
-          <p className="text-[14px] text-[#d8c9c4] mt-2.5 mb-0">
-            <b className="text-[#ff8a80] font-semibold">Карточка:</b> {killer.role} · {killer.description}
-            <br />
-            <b className="text-[#ff8a80] font-semibold">Мотив:</b> {killer.motive} ·{' '}
-            <b className="text-[#ff8a80] font-semibold">Алиби:</b> {killer.alibi}
-          </p>
-        </div>
-      )}
-
-      <div className="text-[11px] font-bold tracking-[.2em] uppercase text-[#ff8a80] mb-3">
-        <i className="fa-solid fa-bullhorn mr-2" />
-        Вбросить улику — нажмите на карточку, она сразу появится у всех
-      </div>
-
-      <div className="flex flex-wrap gap-2 mb-4">
-        {CLUE_LIBRARY.map((c, i) => (
-          <button
-            key={c.t}
-            onClick={() => setCat(i)}
-            className={
-              'px-4 py-2 rounded-lg border text-[13px] font-semibold transition ' +
-              (cat === i
-                ? 'border-[#e0603a] bg-[#2a1212] text-[#ff8a80]'
-                : 'border-[#4a2222] text-[#a08a80] hover:border-[#7a2d1f]')
-            }
-          >
-            <i className={`fa-solid ${c.ic} mr-2`} />
-            {c.t}
-            <span className="ml-2 opacity-60">{c.items.length}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="flex justify-between items-center mb-3">
-        <span className="text-[12px] text-[#a08a80]">
-          {activeCat.frame ? 'В текст автоматически подставится имя случайного игрока' : 'Готовые улики этой категории'}
-        </span>
-        <button
-          onClick={() => redeal(cat)}
-          className="px-3 py-1.5 rounded-lg border border-[#4a2222] text-[#a08a80] text-[12px] hover:text-[#ff8a80] hover:border-[#7a2d1f]"
-        >
-          <i className="fa-solid fa-shuffle mr-1.5" />
-          Другие
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {handFor(cat).map((itemIdx: number) => {
-          const text = activeCatItems(cat)[itemIdx];
-          return (
-            <button
-              key={`${cat}-${itemIdx}`}
-              onClick={() => buildClue(text)}
-              className="text-left p-4 rounded-xl border border-[#4a2222] bg-[#1a0f0b] text-[13.5px] text-[#d8c9c4] leading-snug hover:border-[#e0603a] hover:text-text transition"
-            >
-              <i className={`fa-solid ${activeCat.ic} text-[#e0603a] mr-2`} />
-              {text}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// CUSTOM: СТОРИ-ЭКРАН ВЕДУЩЕГО (сюжет + кто выбыл)
-// ============================================================
-
-function CustomStoryView({ state, advance, goBack, busy }: any) {
-  const setup = state.customSetup;
-  const suspects: any[] = state.scenario?.suspects || [];
-  const eliminatedIds: string[] = state.eliminatedTeamIds || [];
-
-  return (
-    <div className="max-w-[780px] mt-2">
-      <div className="text-[11px] font-bold tracking-[0.22em] uppercase text-accent mb-3">
-        Глава {state.round}
-      </div>
-      <h1 className="font-serif text-[clamp(40px,5.5vw,64px)] leading-none text-text font-semibold mb-4">
-        {setup?.type}. Жертва — {setup?.victim}
-      </h1>
-      <p className="my-6 pl-7 border-l-2 border-accent text-[18px] leading-[1.75] text-text max-w-[680px]">
-        Место — {setup?.place}. Время — {setup?.time}. Орудие — {setup?.weapon}.
-        {setup?.details ? ` ${setup.details}` : ''}
-      </p>
-
-      {eliminatedIds.length > 0 && (
-        <div className="mb-6 p-4 rounded-xl border border-line bg-panel">
-          <div className="text-[11px] font-bold tracking-[.2em] uppercase text-muted mb-2">
-            Выбыли из расследования
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {eliminatedIds.map(id => {
-              const s = suspects.find((x: any) => x.id === id);
-              return (
-                <span
-                  key={id}
-                  className="text-[13px] px-3 py-1.5 rounded-full border border-line bg-white/5 text-muted line-through"
-                >
-                  {s?.name || id}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <div className="flex items-center gap-5 mt-8 flex-wrap">
-        <button
-          onClick={advance}
-          disabled={busy}
-          className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
-        >
-          Приступить к обсуждению <i className="fa-solid fa-arrow-right" />
-        </button>
-        <button
-          onClick={goBack}
-          disabled={busy}
-          className="px-5 py-3.5 rounded-xl border border-line bg-panel text-muted hover:bg-panel2 text-sm disabled:opacity-40"
-        >
-          ← Назад
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// CUSTOM: ГОЛОСОВАНИЕ НА ЭКРАНЕ ВЕДУЩЕГО
-// ============================================================
-
-function CustomVotingHostView({
-  state,
-  advance,
-  busy,
-  votingStartedAt,
-  votingDurationSec
-}: any) {
-  const suspects: any[] = state.scenario?.suspects || [];
-  const eliminatedIds: string[] = state.eliminatedTeamIds || [];
-  const alive = suspects.filter((s: any) => !eliminatedIds.includes(s.id));
-  const teams: any[] = state.teams || [];
-  const voters = teams.filter((t: any) => !eliminatedIds.includes(t.id));
-  const votedCount = voters.filter((t: any) => t.vote).length;
-  const nameOf = (id: string) =>
-    teams.find((t: any) => t.id === id)?.name ||
-    suspects.find((s: any) => s.id === id)?.name ||
-    '—';
-
-  return (
-    <div>
-      <div className="text-center mb-10">
-        <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-3">
-          Голосование
-        </h2>
-        <p className="text-muted max-w-[560px] mx-auto">
-          Каждый игрок выбирает подозреваемого на своём телефоне.
-        </p>
-        <div className="mt-4 text-2xl font-mono text-accent tabular-nums">
-          <VotingCountdown votingStartedAt={votingStartedAt} duration={votingDurationSec || 60} />
-        </div>
-      </div>
-
-      <div
-        className={
-          'grid gap-4 mx-auto mb-10 ' +
-          (alive.length === 1
-            ? 'grid-cols-1 max-w-md'
-            : alive.length === 2
-            ? 'grid-cols-1 md:grid-cols-2 max-w-2xl'
-            : 'md:grid-cols-2 lg:grid-cols-3 max-w-[1200px]')
-        }
-      >
-        {alive.map((s: any) => {
-          const votesFor = voters.filter((t: any) => t.vote === s.id).length;
-          return (
-            <div key={s.id} className="bg-panel border border-line rounded-2xl p-5 flex flex-col">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="w-12 h-12 rounded-full grid place-items-center bg-panel2 border border-line text-accent text-lg flex-none">
-                  <i className={`fa-solid ${s.icon || 'fa-user-secret'}`} />
-                </span>
-                <div className="min-w-0">
-                  <div className="font-serif text-xl text-text leading-tight">{s.name}</div>
-                  <div className="text-[10.5px] tracking-wider uppercase text-muted">{s.role}</div>
-                </div>
-                <span className="ml-auto text-[12px] font-bold text-accent">
-                  {votesFor > 0 ? `${votesFor} 🗳`.replace(' 🗳', ' × ') : ''}
-                </span>
-              </div>
-              <div className="text-[13px] text-muted leading-snug mb-3">{s.description}</div>
-              <div className="text-[12px] text-muted mt-auto pt-3 border-t border-line/60">
-                <div>
-                  <span className="text-accent">Мотив:</span> {s.motive}
-                </div>
-                <div className="mt-1">
-                  <span className="text-accent">Алиби:</span> {s.alibi}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="max-w-[420px] mx-auto mb-10">
-        <div className="flex justify-between text-[12px] text-muted mb-2.5">
-          <span>Проголосовали</span>
-          <span>
-            <b className="text-text font-medium">{votedCount}</b> из {voters.length}
-          </span>
-        </div>
-        <div className="h-0.5 bg-white/[.08] rounded overflow-hidden">
-          <div
-            className="h-full bg-accent transition-all duration-500"
-            style={{ width: `${(votedCount / Math.max(1, voters.length)) * 100}%` }}
-          />
-        </div>
-        <div className="flex flex-wrap justify-center gap-2 mt-5">
-          {voters.map((t: any) => (
-            <div
-              key={t.id}
-              className={
-                'px-3 py-1.5 rounded-full border text-[12px] flex items-center gap-2 transition ' +
-                (t.vote ? 'border-accent bg-accent/10' : 'border-line')
-              }
-            >
-              <i
-                className={`fa-solid ${t.vote ? 'fa-check text-accent' : 'fa-hourglass-half text-muted'} text-[11px]`}
-              />
-              {t.vote ? `обвиняет ${nameOf(t.vote)}` : t.name}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex justify-center">
-        <button
-          onClick={advance}
-          disabled={busy}
-          className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
-        >
-          Подвести итоги <i className="fa-solid fa-gavel" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// CUSTOM: ИТОГИ РАУНДА НА ЭКРАНЕ ВЕДУЩЕГО
-// ============================================================
-
-function CustomResultsHostView({ state, advance, round, totalRounds, busy }: any) {
-  const res = state.lastResult || {};
-  const suspects: any[] = state.scenario?.suspects || [];
-  const teams: any[] = state.teams || [];
-  const elimId = res.eliminatedTeamId || res.eliminatedId;
-  const elimSuspect = suspects.find((s: any) => s.id === elimId);
-  const isLast = round >= totalRounds;
-
-  if (isLast) {
-    return (
-      <div>
-        <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-accent mb-3">
-          Вердикт следствия
-        </div>
-        <h2 className="font-serif text-[clamp(44px,6vw,72px)] leading-none text-text font-semibold mb-10">
-          Итоги дела
-        </h2>
-        <button
-          onClick={advance}
-          disabled={busy}
-          className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
-        >
-          Финальная разгадка <i className="fa-solid fa-arrow-right" />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-accent mb-3">
-        Вердикт следствия
-      </div>
-      <h2 className="font-serif text-[clamp(44px,6vw,72px)] leading-none text-text font-semibold mb-10">
-        Итоги раунда {round}
-      </h2>
-
-      {res.tie ? (
-        <div className="bg-panel border border-line rounded-2xl p-8 mb-10 max-w-[720px]">
-          <div className="text-[11px] font-bold tracking-[0.2em] uppercase text-muted mb-3">
-            Ничья
-          </div>
-          <p className="m-0 text-[16px] text-text leading-relaxed">
-            Голоса разделились — никто не выбывает.
-          </p>
-        </div>
-      ) : elimSuspect ? (
-        <EliminatedCard suspect={elimSuspect} />
-      ) : null}
-
-      {res.voteCounts && (
-        <div className="mb-10 flex flex-wrap gap-2">
-          {Object.entries(res.voteCounts).map(([id, n]: any) => {
-            const s = suspects.find((x: any) => x.id === id);
-            return (
-              <span
-                key={id}
-                className="text-[13px] px-3 py-1.5 rounded-full border border-line bg-panel text-muted"
-              >
-                {s?.name || id}: <b className="text-accent">{n}</b>
-              </span>
-            );
-          })}
-        </div>
-      )}
-
-      <button
-        onClick={advance}
-        disabled={busy}
-        className="px-6 py-3.5 rounded-xl bg-accent text-white font-bold text-[15px] inline-flex items-center gap-2.5 hover:opacity-90 disabled:opacity-40 transition"
-      >
-        Следующая глава <i className="fa-solid fa-arrow-right" />
-      </button>
-    </div>
-  );
-}
-
-// ============================================================
 // ГЛАВНЫЙ КОМПОНЕНТ
 // ============================================================
 
@@ -1174,7 +641,6 @@ export default function Screen() {
   const [bgUrl, setBgUrl] = useState<string>('');
   const joinedRef = useRef(false);
   const [injectOpen, setInjectOpen] = useState(false);
-  const [masterHidden, setMasterHidden] = useState(false);
 
 
   const trace = (event: string, data?: any) => {
@@ -1254,19 +720,6 @@ export default function Screen() {
       if (slot) {
         slot.innerHTML = `<img src="${dataUrl}" alt="QR" width="240" height="240" />`;
       }
-    });
-  }, [state?.isCustom, state?.phase, code]);
-
-  useEffect(() => {
-    if (!state?.isCustom || state.phase !== 'build') return;
-    const url = `${location.origin}/play/${code}`;
-    QRCode.toDataURL(url, {
-      width: 200,
-      margin: 1,
-      color: { dark: '#1a0f0a', light: '#f3e6cf' }
-    }).then(dataUrl => {
-      const slot = document.getElementById('qr-container-build');
-      if (slot) slot.innerHTML = `<img src="${dataUrl}" alt="QR" width="176" height="176" />`;
     });
   }, [state?.isCustom, state?.phase, code]);
 
@@ -1435,80 +888,33 @@ export default function Screen() {
         {phase === 'story' && (
           state.isDemo ? (
             <DemoStory chapter={chapter} clues={clues} advance={advance} busy={busy} />
-          ) : state.isCustom ? (
-            <div>
-              <HostMasterPanel
-                state={state}
-                onInject={injectClue}
-                hidden={masterHidden}
-                onToggle={() => setMasterHidden(v => !v)}
-              />
-              <CustomStoryView state={state} advance={advance} goBack={goBack} busy={busy} />
-            </div>
           ) : (
             <Story chapter={chapter} round={round} advance={advance} goBack={goBack} busy={busy} />
           )
         )}
 
         {phase === 'discussion' && (
-          state.isCustom ? (
-            <div>
-              <HostMasterPanel
-                state={state}
-                onInject={injectClue}
-                hidden={masterHidden}
-                onToggle={() => setMasterHidden(v => !v)}
-              />
-              <Discussion
-                scenario={scenario}
-                chapter={chapter}
-                clues={clues}
-                revealedClueIndices={revealedClueIndices || []}
-                round={round}
-                roundStartedAt={roundStartedAt}
-                roundPausedAt={state.roundPausedAt}
-                roundPausedTotalMs={state.roundPausedTotalMs}
-                roundDurationSec={state.roundDurationSec}
-                clueTimesSec={clueTimesSec || REVEAL_MARKS}
-                advance={advance}
-                goBack={goBack}
-                busy={busy}
-                onAccuse={() => setAccuseOpen(true)}
-                onTogglePause={togglePause}
-                onInjectClue={() => setInjectOpen(true)}
-              />
-            </div>
-          ) : (
-            <Discussion
-              scenario={scenario}
-              chapter={chapter}
-              clues={clues}
-              revealedClueIndices={revealedClueIndices || []}
-              round={round}
-              roundStartedAt={roundStartedAt}
-              roundPausedAt={state.roundPausedAt}
-              roundPausedTotalMs={state.roundPausedTotalMs}
-              roundDurationSec={state.roundDurationSec}
-              clueTimesSec={clueTimesSec || REVEAL_MARKS}
-              advance={advance}
-              goBack={goBack}
-              busy={busy}
-              onAccuse={() => setAccuseOpen(true)}
-              onTogglePause={togglePause}
-              onInjectClue={state.isCustom ? () => setInjectOpen(true) : undefined}
-            />
-          )
+          <Discussion
+            scenario={scenario}
+            chapter={chapter}
+            clues={clues}
+            revealedClueIndices={revealedClueIndices || []}
+            round={round}
+            roundStartedAt={roundStartedAt}
+            roundPausedAt={state.roundPausedAt}
+            roundPausedTotalMs={state.roundPausedTotalMs}
+            roundDurationSec={state.roundDurationSec}
+            clueTimesSec={clueTimesSec || REVEAL_MARKS}
+            advance={advance}
+            goBack={goBack}
+            busy={busy}
+            onAccuse={() => setAccuseOpen(true)}
+            onTogglePause={togglePause}
+            onInjectClue={state.isCustom ? () => setInjectOpen(true) : undefined}
+          />
         )}
 
-        {phase === 'voting' && state.isCustom ? (
-          <CustomVotingHostView
-            state={state}
-            advance={advance}
-            busy={busy}
-            votingStartedAt={state.votingStartedAt}
-            votingDurationSec={state.votingDurationSec || 60}
-          />
-        ) : phase === 'voting' && (
+        {phase === 'voting' && (
           <div>
             <div className="text-center mb-10">
               <h2 className="font-serif text-[clamp(36px,5vw,56px)] leading-none text-text font-semibold mb-3">
@@ -1598,17 +1004,7 @@ export default function Screen() {
           </div>
         )}
 
-        {phase === 'results' && lastResult && state.isCustom && (
-          <CustomResultsHostView
-            state={state}
-            advance={advance}
-            round={round}
-            totalRounds={totalRounds}
-            busy={busy}
-          />
-        )}
-
-        {phase === 'results' && lastResult && !state.isCustom && (
+        {phase === 'results' && lastResult && (
           <Results
             result={lastResult}
             teams={teams}
